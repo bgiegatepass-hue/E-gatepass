@@ -13,7 +13,40 @@ const login = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Email and password are required' });
   }
 
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = email.toLowerCase().trim();
+  const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+  const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+  const defaultAdminCampus = process.env.DEFAULT_ADMIN_CAMPUS || 'BIST';
+
+  let user = await User.findOne({ email: normalizedEmail });
+
+  const isDefaultAdminLogin =
+    normalizedEmail === defaultAdminEmail &&
+    defaultAdminPassword &&
+    password === defaultAdminPassword;
+
+  if (!user && isDefaultAdminLogin) {
+    const existingAdmin = await User.findOne({ role: 'ADMIN', email: normalizedEmail });
+    if (existingAdmin) {
+      existingAdmin.name = process.env.DEFAULT_ADMIN_NAME || existingAdmin.name || 'Super Admin';
+      existingAdmin.password = defaultAdminPassword;
+      existingAdmin.campus = defaultAdminCampus;
+      existingAdmin.isActive = true;
+      existingAdmin.isEmailVerified = true;
+      user = await existingAdmin.save();
+    } else {
+      user = await User.create({
+        name: process.env.DEFAULT_ADMIN_NAME || 'Super Admin',
+        email: normalizedEmail,
+        password: defaultAdminPassword,
+        role: 'ADMIN',
+        campus: defaultAdminCampus,
+        isActive: true,
+        isEmailVerified: true,
+      });
+    }
+  }
+
   if (!user) {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
