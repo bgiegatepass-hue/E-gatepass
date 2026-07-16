@@ -6,6 +6,11 @@
 // The app now resolves a usable local backend URL automatically for browser,
 // Android emulator, and device-based testing.
 function resolveBackendBaseUrl() {
+  // 🔥 PRODUCTION URL - DIRECT 🔥
+  // Backend deployed on Render
+  return 'https://e-gatepass-1-pbej.onrender.com/api/v1';
+  
+  /* OLD CODE - COMMENTED OUT (local development ke liye)
   if (typeof window !== 'undefined') {
     try {
       const stored = window.localStorage?.getItem('epass_backend_url');
@@ -24,6 +29,7 @@ function resolveBackendBaseUrl() {
     }
   }
   return 'http://localhost:5000/api/v1';
+  */
 }
 
 const APP_CONFIG = {
