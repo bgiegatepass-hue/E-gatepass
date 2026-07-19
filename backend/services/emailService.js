@@ -9,7 +9,7 @@ let transporter = null;
 
 function buildAccountApprovedEmailMailOptions({ toEmail, toName, loginUrl }) {
   const from = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-  const finalLoginUrl = loginUrl || process.env.CLIENT_BASE_URL || 'http://localhost:8100';
+  const finalLoginUrl = loginUrl || process.env.CLIENT_BASE_URL || 'https://e-gatepass-eight.vercel.app/';
 
   return {
     from: `"E-PASS — BGI" <${from}>`,
