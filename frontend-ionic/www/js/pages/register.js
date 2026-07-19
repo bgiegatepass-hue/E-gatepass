@@ -1,7 +1,7 @@
 // =====================================================================
 // E-PASS — Student Self-Registration (Campus Code + Email OTP)
 // Step 1: Name, Email, Password, Campus Code  -> backend generates an OTP
-// Step 2: Enter the 6-digit OTP emailed via EmailJS -> account created + auto-login
+// Step 2: Enter the 6-digit OTP emailed via backend SMTP -> account created + auto-login
 // =====================================================================
 
 Pages['register'] = {
