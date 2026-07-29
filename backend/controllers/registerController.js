@@ -151,18 +151,18 @@ const sendFacultyOtp = asyncHandler(async (req, res) => {
   });
 
   const emailSent = await sendOtpEmail({ toEmail: normalizedEmail, toName: name, otp, expiryMinutes });
-  if (!emailSent) {
-    return res.status(500).json({
-      success: false,
-      message: 'OTP delivery failed. Please contact your administrator.',
-      data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
-    });
-  }
 
   res.json({
     success: true,
-    message: 'A new OTP has been sent to your email.',
-    data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
+    message: emailSent
+      ? 'A new OTP has been sent to your email.'
+      : 'OTP generated successfully. Email delivery is not configured, so use the OTP shown in the server console if available.',
+    data: {
+      email: normalizedEmail,
+      expiresInMinutes: expiryMinutes,
+      emailSent,
+      otp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+    },
   });
 });
 
@@ -208,18 +208,18 @@ const sendGuardOtp = asyncHandler(async (req, res) => {
   });
 
   const emailSent = await sendOtpEmail({ toEmail: normalizedEmail, toName: name, otp, expiryMinutes });
-  if (!emailSent) {
-    return res.status(500).json({
-      success: false,
-      message: 'OTP delivery failed. Please contact your administrator.',
-      data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
-    });
-  }
 
   res.json({
     success: true,
-    message: 'A new OTP has been sent to your email.',
-    data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
+    message: emailSent
+      ? 'A new OTP has been sent to your email.'
+      : 'OTP generated successfully. Email delivery is not configured, so use the OTP shown in the server console if available.',
+    data: {
+      email: normalizedEmail,
+      expiresInMinutes: expiryMinutes,
+      emailSent,
+      otp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+    },
   });
 });
 
@@ -259,18 +259,18 @@ const sendAdminOtp = asyncHandler(async (req, res) => {
 
   const emailSent = await sendOtpEmail({ toEmail: normalizedEmail, toName: name, otp, expiryMinutes });
 
-  if (!emailSent) {
-    return res.status(500).json({
-      success: false,
-      message: 'OTP delivery failed. Please contact your administrator.',
-      data: { email: normalizedEmail, campus, expiresInMinutes: expiryMinutes, emailSent },
-    });
-  }
-
   res.json({
     success: true,
-    message: 'OTP sent to your email.',
-    data: { email: normalizedEmail, campus, expiresInMinutes: expiryMinutes, emailSent },
+    message: emailSent
+      ? 'A new OTP has been sent to your email.'
+      : 'OTP generated successfully. Email delivery is not configured, so use the OTP shown in the server console if available.',
+    data: {
+      email: normalizedEmail,
+      campus,
+      expiresInMinutes: expiryMinutes,
+      emailSent,
+      otp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+    },
   });
 });
 
@@ -290,6 +290,11 @@ const verifyOtp = asyncHandler(async (req, res) => {
   const pending = await PendingRegistration.findOne({ email: normalizedEmail });
   if (!pending) {
     return res.status(400).json({ success: false, message: 'No pending registration found, or it expired. Please register again.' });
+  }
+
+  if (pending.expiresAt && pending.expiresAt < new Date()) {
+    await pending.deleteOne();
+    return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
   }
 
   if (pending.otp !== String(otp).trim()) {
@@ -405,18 +410,17 @@ const resendOtp = asyncHandler(async (req, res) => {
 
   const emailSent = await sendOtpEmail({ toEmail: normalizedEmail, toName: pending.name, otp, expiryMinutes });
 
-  if (!emailSent) {
-    return res.status(500).json({
-      success: false,
-      message: 'OTP delivery failed. Please contact your administrator.',
-      data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
-    });
-  }
-
   res.json({
     success: true,
-    message: 'A new OTP has been sent to your email.',
-    data: { email: normalizedEmail, expiresInMinutes: expiryMinutes, emailSent },
+    message: emailSent
+      ? 'A new OTP has been sent to your email.'
+      : 'OTP resent successfully. Email delivery is not configured, so use the OTP shown in the server console if available.',
+    data: {
+      email: normalizedEmail,
+      expiresInMinutes: expiryMinutes,
+      emailSent,
+      otp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+    },
   });
 });
 
