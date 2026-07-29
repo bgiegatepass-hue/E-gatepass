@@ -528,8 +528,8 @@ Pages['login'] = {
     return `
       <img src="assets/images/logo.png" alt="BGI Logo"
            style="width:160px;max-width:70%;height:auto;object-fit:contain;margin:0 auto 14px;display:block;"
-           onload="document.getElementById('login-college-text').style.display='none';"
-           onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex';" />
+           onload="var logoText=document.getElementById('login-college-text'); if (logoText) logoText.style.display='none';"
+           onerror="this.style.display='none';var fallback=document.getElementById('logo-fallback'); if (fallback) fallback.style.display='flex';" />
       <div id="logo-fallback" class="splash-logo" style="display:none;">
         <ion-icon name="shield-half-outline" style="font-size:38px;"></ion-icon>
       </div>
