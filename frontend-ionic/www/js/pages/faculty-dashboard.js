@@ -43,11 +43,31 @@ Pages['faculty-dashboard'] = {
   },
 
   afterRender() {
+    if (!this._notificationStateListenerBound) {
+      window.addEventListener('notifications:state-changed', (event) => {
+        const unreadCount = Number(event.detail?.unreadCount || 0);
+        this._syncHeaderNotificationBadge(unreadCount);
+      });
+      this._notificationStateListenerBound = true;
+    }
     document.querySelectorAll('#dash-tabbar ion-tab-button').forEach((btn) => {
       btn.addEventListener('click', () => this._switchTab(btn.dataset.tab));
     });
     this._switchTab('home');
     this._getUserLocation();
+  },
+
+  _syncHeaderNotificationBadge(count) {
+    const unreadCount = Number(count || 0);
+    document.querySelectorAll('#notif-bell-badge, .notif-badge').forEach((badge) => {
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        badge.style.display = 'flex';
+      } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+      }
+    });
   },
 
   _switchTab(tab) {
@@ -58,11 +78,13 @@ Pages['faculty-dashboard'] = {
 
     const actions = document.getElementById('dash-header-actions');
     actions.innerHTML = tab === 'home'
-      ? `<ion-button id="notif-bell-btn" style="--color:var(--bgi-primary);"><ion-icon name="notifications-outline" slot="icon-only" style="font-size:22px;"></ion-icon></ion-button>`
+      ? `<ion-button id="notif-bell-btn" style="--color:var(--bgi-primary);position:relative;">
+          <ion-icon name="notifications-outline" slot="icon-only" style="font-size:22px;"></ion-icon>
+          <span id="notif-bell-badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--bgi-danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;line-height:16px;text-align:center;font-weight:700;">0</span>
+        </ion-button>`
       : '';
     if (tab === 'home') {
       document.getElementById('notif-bell-btn').addEventListener('click', () => {
-        this._lastNotifCount = 0;
         Router.navigate('notifications');
       });
     }
@@ -185,6 +207,8 @@ Pages['faculty-dashboard'] = {
         Api.get('/leave/history'),
         Api.get('/notifications/unread-count'),
       ]);
+      const unread = Number(unreadRes.data?.count || 0);
+      this._syncHeaderNotificationBadge(unread);
       const requests = historyRes.data || [];
       const counts = { total: requests.length, approved: 0, pending: 0, rejected: 0 };
       requests.forEach((r) => {
@@ -192,7 +216,6 @@ Pages['faculty-dashboard'] = {
         else if (r.overall_status === 'Rejected') counts.rejected++;
         else counts.pending++;
       });
-      const unread = unreadRes.data?.count || 0;
       let approvedPassData = null;
       const approvedLeave = requests.find((r) => (r.overall_status || r.overallStatus) === 'Approved');
       if (approvedLeave) {
@@ -278,13 +301,6 @@ Pages['faculty-dashboard'] = {
             </div>
             <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">History</div>
           </div>
-          <div id="tile-notifications" style="background:var(--bgi-surface);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;border:1px solid var(--bgi-border);transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);position:relative;">
-            ${unread > 0 ? `<div style="position:absolute;top:6px;right:10px;background:var(--bgi-danger);color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;">${unread}</div>` : ''}
-            <div style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;">
-              <ion-icon name="notifications-outline" style="font-size:20px;color:#ef4444;"></ion-icon>
-            </div>
-            <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">Notifs</div>
-          </div>
         </div>
 
         <!-- Stats Card -->
@@ -328,12 +344,6 @@ Pages['faculty-dashboard'] = {
         ` : ''}
 
         ${this._renderApprovedPassCard(approvedPassData || null)}
-
-        <!-- Notice -->
-        <div style="background:rgba(99,102,241,0.06);border-radius:12px;border:1px solid rgba(99,102,241,0.15);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
-          <ion-icon name="information-circle-outline" style="font-size:18px;color:var(--bgi-primary);flex-shrink:0;margin-top:1px;"></ion-icon>
-          <p style="font-size:11px;color:var(--bgi-text-secondary);margin:0;line-height:1.4;"><b style="color:var(--bgi-text);">Notice:</b> Apply for leave at least 1 day before.</p>
-        </div>
       `;
 
       // Event Listeners
@@ -369,27 +379,36 @@ Pages['faculty-dashboard'] = {
       });
       const applyLeaveTile = document.getElementById('tile-apply-leave');
       if (applyLeaveTile) {
+        if (applyLeaveTile.dataset.leaveHandlerBound !== 'true') {
+          applyLeaveTile.dataset.leaveHandlerBound = 'true';
+          const openApplyLeave = (event) => {
+            if (event) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+            this._showApplyLeaveModal();
+          };
+          applyLeaveTile.addEventListener('click', openApplyLeave);
+          applyLeaveTile.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+              event.preventDefault();
+              openApplyLeave(event);
+            }
+          });
+          applyLeaveTile.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              openApplyLeave(event);
+            }
+          });
+        }
         applyLeaveTile.setAttribute('role', 'button');
         applyLeaveTile.setAttribute('tabindex', '0');
         applyLeaveTile.style.touchAction = 'manipulation';
-        const openApplyLeave = (event) => {
-          if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
-          this._showApplyLeaveModal();
-        };
-        applyLeaveTile.addEventListener('click', openApplyLeave);
-        applyLeaveTile.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openApplyLeave(event);
-          }
-        });
+        applyLeaveTile.style.cursor = 'pointer';
       }
       document.getElementById('tile-my-requests')?.addEventListener('click', () => this._switchTab('requests'));
       document.getElementById('tile-leave-history').addEventListener('click', () => this._switchTab('history'));
-      document.getElementById('tile-notifications').addEventListener('click', () => Router.navigate('notifications'));
     } catch (e) {
       body.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }
@@ -508,20 +527,24 @@ Pages['faculty-dashboard'] = {
 
           <!-- Date Range -->
           <div style="margin-bottom:8px;">
-            <div style="background:var(--bgi-surface);border-radius:12px;border:1px solid var(--bgi-border);padding:8px 14px 10px;">
+            <div style="background:var(--bgi-surface);border-radius:12px;border:1px solid var(--bgi-border);padding:8px 12px 10px;">
               <label style="font-size:10px;font-weight:700;color:var(--bgi-text-secondary);display:block;padding-top:2px;letter-spacing:0.5px;text-transform:uppercase;">Leave Date Range <span style="color:var(--bgi-danger);">*</span></label>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
-                <div>
+                <div style="min-width:0;">
                   <div style="font-size:10px;font-weight:600;color:var(--bgi-text-secondary);margin-bottom:4px;">From</div>
-                  <ion-input id="from-date-input" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:0;--padding-bottom:0;--background:var(--bgi-surface);border-radius:8px;border:1px solid var(--bgi-border);margin-bottom:4px;" readonly></ion-input>
-                  <ion-datetime id="from-date" presentation="date" style="font-size:13px;font-weight:500;--padding-top:0;--padding-bottom:2px;color:var(--bgi-text);--background:var(--bgi-surface);border-radius:8px;display:block;margin-top:4px;"></ion-datetime>
-                  <div id="from-date-display" style="font-size:12px;font-weight:500;color:var(--bgi-text);padding:4px 0 2px;"></div>
+                  <ion-input id="from-date-input" readonly style="height:34px;font-size:12px;font-weight:500;color:var(--bgi-text);--padding-top:4px;--padding-bottom:4px;--background:var(--bgi-surface);border-radius:8px;border:1px solid var(--bgi-border);cursor:pointer;" placeholder="Select"></ion-input>
+                  <div id="from-date-picker-wrap" style="display:none;margin-top:8px;">
+                    <ion-datetime id="from-date" presentation="date" mode="md" show-default-buttons="false" size="cover" max-width="100%" style="width:100%;max-width:220px;margin:0 auto;display:block;--background:var(--bgi-surface);--ion-color-base:var(--bgi-text);--padding-top:0;--padding-bottom:0;--height:170px;border-radius:10px;--border-radius:10px;--box-shadow:none;"></ion-datetime>
+                  </div>
+                  <div id="from-date-display" style="font-size:11px;font-weight:600;color:var(--bgi-text);padding:6px 4px 0;min-height:18px;"></div>
                 </div>
-                <div>
+                <div style="min-width:0;">
                   <div style="font-size:10px;font-weight:600;color:var(--bgi-text-secondary);margin-bottom:4px;">To</div>
-                  <ion-input id="to-date-input" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:0;--padding-bottom:0;--background:var(--bgi-surface);border-radius:8px;border:1px solid var(--bgi-border);margin-bottom:4px;" readonly></ion-input>
-                  <ion-datetime id="to-date" presentation="date" style="font-size:13px;font-weight:500;--padding-top:0;--padding-bottom:2px;color:var(--bgi-text);--background:var(--bgi-surface);border-radius:8px;display:block;margin-top:4px;"></ion-datetime>
-                  <div id="to-date-display" style="font-size:12px;font-weight:500;color:var(--bgi-text);padding:4px 0 2px;"></div>
+                  <ion-input id="to-date-input" readonly style="height:34px;font-size:12px;font-weight:500;color:var(--bgi-text);--padding-top:4px;--padding-bottom:4px;--background:var(--bgi-surface);border-radius:8px;border:1px solid var(--bgi-border);cursor:pointer;" placeholder="Select"></ion-input>
+                  <div id="to-date-picker-wrap" style="display:none;margin-top:8px;">
+                    <ion-datetime id="to-date" presentation="date" mode="md" show-default-buttons="false" size="cover" max-width="100%" style="width:100%;max-width:220px;margin:0 auto;display:block;--background:var(--bgi-surface);--ion-color-base:var(--bgi-text);--padding-top:0;--padding-bottom:0;--height:170px;border-radius:10px;--border-radius:10px;--box-shadow:none;"></ion-datetime>
+                  </div>
+                  <div id="to-date-display" style="font-size:11px;font-weight:600;color:var(--bgi-text);padding:6px 4px 0;min-height:18px;"></div>
                 </div>
               </div>
             </div>
@@ -576,106 +599,73 @@ Pages['faculty-dashboard'] = {
       }, 500);
     });
 
-    // Toggle Functions
-    function togglePicker(pickerId, displayId, arrowId) {
-      const picker = modal.querySelector(pickerId);
-      const display = modal.querySelector(displayId);
-      const arrow = modal.querySelector(arrowId);
-      
-      if (picker.style.display === 'none') {
-        picker.style.display = 'block';
-        arrow.name = 'chevron-up-outline';
-        setTimeout(() => {
-          const datetime = picker.querySelector('ion-datetime');
-          if (datetime && datetime.value) {
-            const val = datetime.value;
-            if (pickerId === '#date-picker-container') {
-              const d = new Date(val);
-              display.textContent = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            } else {
-              const parts = val.split(':');
-              const hour = parseInt(parts[0]);
-              const minute = parts[1];
-              const ampm = hour >= 12 ? 'PM' : 'AM';
-              const hour12 = hour % 12 || 12;
-              display.textContent = `${hour12}:${minute} ${ampm}`;
-            }
-          }
-        }, 100);
-      } else {
-        picker.style.display = 'none';
-        arrow.name = 'chevron-down-outline';
-      }
+    const fromInput = modal.querySelector('#from-date-input');
+    const toInput = modal.querySelector('#to-date-input');
+    const fromPickerWrap = modal.querySelector('#from-date-picker-wrap');
+    const toPickerWrap = modal.querySelector('#to-date-picker-wrap');
+    const fromDatePicker = modal.querySelector('#from-date');
+    const toDatePicker = modal.querySelector('#to-date');
+
+    function closeAllDatePickers() {
+      if (fromPickerWrap) fromPickerWrap.style.display = 'none';
+      if (toPickerWrap) toPickerWrap.style.display = 'none';
     }
 
-    // entry/exit pickers removed; only date range pickers remain
+    function openDatePicker(targetWrap) {
+      if (!targetWrap) return;
+      closeAllDatePickers();
+      targetWrap.style.display = 'block';
+    }
+
+    fromInput?.addEventListener('click', () => openDatePicker(fromPickerWrap));
+    toInput?.addEventListener('click', () => openDatePicker(toPickerWrap));
 
     // Set Defaults
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-    
-    const fromDatePicker = modal.querySelector('#from-date');
-    const toDatePicker = modal.querySelector('#to-date');
     if (fromDatePicker) {
       fromDatePicker.value = todayStr;
       const display = modal.querySelector('#from-date-display');
-      const input = modal.querySelector('#from-date-input');
       if (display) {
         display.textContent = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
-      if (input) input.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      if (fromInput) fromInput.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     }
     if (toDatePicker) {
       toDatePicker.value = todayStr;
       const display = modal.querySelector('#to-date-display');
-      const input = modal.querySelector('#to-date-input');
       if (display) {
         display.textContent = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
-      if (input) input.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      if (toInput) toInput.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const defaultTime = `${hh}:${mm}`;
-    
-    const hour = now.getHours();
-    const minute = String(now.getMinutes()).padStart(2, '0');
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    const timeDisplay = `${hour12}:${minute} ${ampm}`;
-
-    // entry/exit time fields removed — using date range only
-
     // Auto-update display
-    modal.querySelector('#from-date').addEventListener('ionChange', (e) => {
+    fromDatePicker?.addEventListener('ionChange', (e) => {
       const val = e.detail.value;
       if (val) {
         const d = new Date(val);
         const display = modal.querySelector('#from-date-display');
-        const input = modal.querySelector('#from-date-input');
         if (display) {
           display.textContent = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         }
-        if (input) input.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        if (fromInput) fromInput.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
+      closeAllDatePickers();
     });
 
-    modal.querySelector('#to-date').addEventListener('ionChange', (e) => {
+    toDatePicker?.addEventListener('ionChange', (e) => {
       const val = e.detail.value;
       if (val) {
         const d = new Date(val);
         const display = modal.querySelector('#to-date-display');
-        const input = modal.querySelector('#to-date-input');
         if (display) {
           display.textContent = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         }
-        if (input) input.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        if (toInput) toInput.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
+      closeAllDatePickers();
     });
-
-    // no entry/exit time change handlers needed
 
     // Medical upload
     const fileInput = modal.querySelector('#medical-file-input');

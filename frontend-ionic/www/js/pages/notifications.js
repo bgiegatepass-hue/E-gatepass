@@ -18,7 +18,39 @@ Pages['notifications'] = {
   },
 
   async afterRender() {
-    document.getElementById('notif-back-btn').addEventListener('click', (e) => { e.preventDefault(); Router.goBack(); });
+    const syncUnreadState = async () => {
+      try {
+        const unreadRes = await Api.get('/notifications/unread-count');
+        const count = Number(unreadRes?.data?.count || 0);
+        document.querySelectorAll('#notif-bell-badge, .notif-badge').forEach((badge) => {
+          if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'flex';
+          } else {
+            badge.textContent = '';
+            badge.style.display = 'none';
+          }
+        });
+        window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: count } }));
+        const badge = document.getElementById('notif-badge');
+        if (badge) {
+          badge.style.display = count > 0 ? 'block' : 'none';
+          badge.textContent = count > 99 ? '99+' : count;
+        }
+      } catch (_) {
+        document.querySelectorAll('#notif-bell-badge, .notif-badge').forEach((badge) => {
+          badge.textContent = '';
+          badge.style.display = 'none';
+        });
+        window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: 0 } }));
+      }
+    };
+
+    document.getElementById('notif-back-btn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await syncUnreadState();
+      Router.goBack();
+    });
 
     const list = document.getElementById('notif-list');
     const currentUser = Auth.getCurrentUser() || Storage.getUser() || {};
@@ -30,6 +62,20 @@ Pages['notifications'] = {
         return;
       }
 
+      const unreadIds = notifications
+        .filter((n) => !(n.isRead ?? n.is_read))
+        .map((n) => n.id || n._id)
+        .filter(Boolean);
+
+      if (unreadIds.length) {
+        await Promise.all(unreadIds.map(async (id) => {
+          try {
+            await Api.put(`/notifications/${id}/read`, {});
+          } catch (_) {}
+        }));
+        await syncUnreadState();
+      }
+
       const iconFor = (type) => {
         if (type === 'FACULTY_APPROVED' || type === 'HOD_APPROVED') return 'checkmark-circle-outline';
         if (type === 'FACULTY_REJECTED' || type === 'HOD_REJECTED') return 'close-circle-outline';
@@ -39,16 +85,21 @@ Pages['notifications'] = {
 
       list.innerHTML = notifications.map((n) => {
         const leaveReq = n.leave_request || n.leaveRequest || n.leave_request_id || '';
+        const isRead = Boolean(n.isRead ?? n.is_read);
         const isHod = (currentUser.role === 'HOD');
+        const markReadButton = !isRead
+          ? `<ion-button size="small" fill="clear" color="medium" class="notif-read-btn" data-id="${n.id}" style="font-size:11px;">Mark as Read</ion-button>`
+          : '';
         const actionButtons = (isHod && n.type === 'LEAVE_SUBMITTED' && leaveReq)
-          ? `<div style="padding:10px 14px;display:flex;gap:8px;">
+          ? `<div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;">
                <ion-button size="small" color="success" class="notif-approve-btn" data-leave="${leaveReq}" data-id="${n.id}">Approve</ion-button>
                <ion-button size="small" color="danger" class="notif-reject-btn" data-leave="${leaveReq}" data-id="${n.id}">Reject</ion-button>
+               ${markReadButton}
              </div>`
-          : '';
+          : `<div style="padding:10px 14px;display:flex;justify-content:flex-end;">${markReadButton}</div>`;
 
         return `
-        <ion-card class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" data-type="${n.type}" data-leave-request="${leaveReq}" style="cursor:pointer;">
+        <ion-card class="notif-item ${isRead ? '' : 'unread'}" data-id="${n.id}" data-type="${n.type}" data-leave-request="${leaveReq}" style="cursor:pointer;">
           <ion-item lines="none">
             <ion-icon name="${iconFor(n.type)}" slot="start" color="primary"></ion-icon>
             <ion-label>
@@ -61,17 +112,28 @@ Pages['notifications'] = {
         </ion-card>`;
       }).join('');
 
+      const markNotificationRead = async (id, el) => {
+        try {
+          await Api.put(`/notifications/${id}/read`, {});
+          if (el) el.classList.remove('unread');
+          await syncUnreadState();
+        } catch (_) {}
+      };
+
       // Mark read on click and wire approve/reject buttons
       list.querySelectorAll('.notif-item').forEach((card) => {
         card.addEventListener('click', async () => {
-          try { await Api.put(`/notifications/${card.dataset.id}/read`, {}); } catch (_) {}
-          card.classList.remove('unread');
-          window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: 0 } }));
-          const badge = document.getElementById('notif-badge');
-          if (badge) {
-            badge.style.display = 'none';
-            badge.textContent = '';
-          }
+          await markNotificationRead(card.dataset.id, card);
+        });
+      });
+
+      list.querySelectorAll('.notif-read-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          if (!id) return;
+          const card = btn.closest('.notif-item');
+          await markNotificationRead(id, card);
         });
       });
 
@@ -87,7 +149,7 @@ Pages['notifications'] = {
             // mark notification read
             const nid = btn.dataset.id;
             if (nid) await Api.put(`/notifications/${nid}/read`, {});
-            window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: 0 } }));
+            await syncUnreadState();
             btn.disabled = true;
             // refresh list
             this.afterRender();
@@ -107,7 +169,7 @@ Pages['notifications'] = {
             UI.toast('Rejected', 'medium');
             const nid = btn.dataset.id;
             if (nid) await Api.put(`/notifications/${nid}/read`, {});
-            window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: 0 } }));
+            await syncUnreadState();
             btn.disabled = true;
             this.afterRender();
           } catch (err) { UI.toast(err.message || 'Reject failed', 'danger'); }

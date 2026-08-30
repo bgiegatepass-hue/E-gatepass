@@ -41,9 +41,14 @@ Pages['student-dashboard'] = {
   },
 
   afterRender() {
-    window.addEventListener('notifications:state-changed', (event) => {
-      this._syncNotificationBadge(Number(event.detail?.unreadCount || 0));
-    });
+    if (!this._notificationStateListenerBound) {
+      window.addEventListener('notifications:state-changed', (event) => {
+        const unreadCount = Number(event.detail?.unreadCount || 0);
+        this._syncNotificationBadge(unreadCount);
+        this._syncHeaderNotificationBadge(unreadCount);
+      });
+      this._notificationStateListenerBound = true;
+    }
     document.querySelectorAll('#dash-tabbar ion-tab-button').forEach((btn) => {
       btn.addEventListener('click', () => this._switchTab(btn.dataset.tab));
     });
@@ -66,6 +71,19 @@ Pages['student-dashboard'] = {
     }
   },
 
+  _syncHeaderNotificationBadge(count) {
+    const unreadCount = Number(count || 0);
+    document.querySelectorAll('#notif-bell-badge, .notif-badge').forEach((badge) => {
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        badge.style.display = 'flex';
+      } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+      }
+    });
+  },
+
   _switchTab(tab) {
     this._activeTab = tab;
     document.querySelectorAll('#dash-tabbar ion-tab-button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
@@ -74,11 +92,13 @@ Pages['student-dashboard'] = {
 
     const actions = document.getElementById('dash-header-actions');
     actions.innerHTML = tab === 'home'
-      ? `<ion-button id="notif-bell-btn" style="--color:var(--bgi-primary);"><ion-icon name="notifications-outline" slot="icon-only" style="font-size:22px;"></ion-icon></ion-button>`
+      ? `<ion-button id="notif-bell-btn" style="--color:var(--bgi-primary);position:relative;">
+          <ion-icon name="notifications-outline" slot="icon-only" style="font-size:22px;"></ion-icon>
+          <span id="notif-bell-badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--bgi-danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;line-height:16px;text-align:center;font-weight:700;">0</span>
+        </ion-button>`
       : '';
     if (tab === 'home') {
       document.getElementById('notif-bell-btn').addEventListener('click', () => {
-        this._lastNotifCount = 0;
         Router.navigate('notifications');
       });
     }
@@ -195,7 +215,8 @@ Pages['student-dashboard'] = {
         else if (r.overall_status === 'Rejected') counts.rejected++;
         else counts.pending++;
       });
-      const unread = unreadRes.data?.count || 0;
+      const unread = Number(unreadRes.data?.count || 0);
+      this._syncHeaderNotificationBadge(unread);
       let approvedPassData = null;
       const approvedLeave = requests.find((r) => (r.overall_status || r.overallStatus) === 'Approved');
       if (approvedLeave) {
@@ -281,13 +302,6 @@ Pages['student-dashboard'] = {
             </div>
             <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">History</div>
           </div>
-          <div id="tile-notifications" style="background:var(--bgi-surface);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;border:1px solid var(--bgi-border);transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);position:relative;">
-            <div class="notif-badge" style="position:absolute;top:6px;right:10px;background:var(--bgi-danger);color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:18px;height:18px;display:${unread > 0 ? 'flex' : 'none'};align-items:center;justify-content:center;">${unread > 0 ? (unread > 99 ? '99+' : unread) : ''}</div>
-            <div style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;">
-              <ion-icon name="notifications-outline" style="font-size:20px;color:#ef4444;"></ion-icon>
-            </div>
-            <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">Notifs</div>
-          </div>
         </div>
 
         <!-- Stats Card -->
@@ -332,11 +346,6 @@ Pages['student-dashboard'] = {
 
         ${this._renderApprovedPassCard(approvedPassData || null)}
 
-        <!-- Notice -->
-        <div style="background:rgba(99,102,241,0.06);border-radius:12px;border:1px solid rgba(99,102,241,0.15);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
-          <ion-icon name="information-circle-outline" style="font-size:18px;color:var(--bgi-primary);flex-shrink:0;margin-top:1px;"></ion-icon>
-          <p style="font-size:11px;color:var(--bgi-text-secondary);margin:0;line-height:1.4;"><b style="color:var(--bgi-text);">Notice:</b> Apply for leave at least 1 day before.</p>
-        </div>
       `;
 
       // Event Listeners
@@ -358,31 +367,36 @@ Pages['student-dashboard'] = {
       });
       const applyLeaveTile = document.getElementById('tile-apply-leave');
       if (applyLeaveTile) {
+        if (applyLeaveTile.dataset.leaveHandlerBound !== 'true') {
+          applyLeaveTile.dataset.leaveHandlerBound = 'true';
+          const openApplyLeave = (event) => {
+            if (event) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+            this._showApplyLeaveModal();
+          };
+          applyLeaveTile.addEventListener('click', openApplyLeave);
+          applyLeaveTile.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+              event.preventDefault();
+              openApplyLeave(event);
+            }
+          });
+          applyLeaveTile.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              openApplyLeave(event);
+            }
+          });
+        }
         applyLeaveTile.setAttribute('role', 'button');
         applyLeaveTile.setAttribute('tabindex', '0');
         applyLeaveTile.style.touchAction = 'manipulation';
-        const openApplyLeave = (event) => {
-          if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
-          this._showApplyLeaveModal();
-        };
-        applyLeaveTile.addEventListener('click', openApplyLeave);
-        applyLeaveTile.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openApplyLeave(event);
-          }
-        });
+        applyLeaveTile.style.cursor = 'pointer';
       }
       document.getElementById('tile-my-requests')?.addEventListener('click', () => this._switchTab('requests'));
       document.getElementById('tile-leave-history').addEventListener('click', () => this._switchTab('history'));
-      document.getElementById('tile-notifications').addEventListener('click', () => {
-        this._syncNotificationBadge(0);
-        window.dispatchEvent(new CustomEvent('notifications:state-changed', { detail: { unreadCount: 0 } }));
-        Router.navigate('notifications');
-      });
     } catch (e) {
       body.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }

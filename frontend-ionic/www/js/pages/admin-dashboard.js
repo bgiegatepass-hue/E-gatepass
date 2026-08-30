@@ -191,17 +191,6 @@ Pages['admin-dashboard'] = {
           </div>
         </ion-card>
 
-        <!-- Department Insights -->
-        <ion-card style="margin:0 0 8px;">
-          <div style="padding:10px 12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <p style="font-weight:700;margin:0;font-size:13px;">Department Insights</p>
-              <ion-button size="small" fill="outline" id="dept-details-btn" style="font-size:11px;height:28px;">Details</ion-button>
-            </div>
-            ${departments.length ? this._renderDepartmentBars(departments) : '<p class="empty-state" style="padding:0;font-size:12px;">No department data</p>'}
-          </div>
-        </ion-card>
-
       `;
 
       document.getElementById('tile-add-member')?.addEventListener('click', () => this._goToAddMember());
@@ -1778,6 +1767,24 @@ Pages['admin-dashboard'] = {
         const res = await Api.get('/notifications', { limit: 30 });
         const notifs = res.data || [];
         if (!notifs.length) { content.innerHTML = '<p class="empty-state" style="font-size:12px;">No notifications</p>'; return; }
+
+        const unreadIds = notifs
+          .filter((n) => !(n.isRead ?? n.is_read))
+          .map((n) => n.id || n._id)
+          .filter(Boolean);
+
+        if (unreadIds.length) {
+          await Promise.all(unreadIds.map(async (id) => {
+            try { await Api.put(`/notifications/${id}/read`, {}); } catch (_) {}
+          }));
+          this._lastNotifCount = 0;
+          const badge = document.getElementById('notif-badge');
+          if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '';
+          }
+        }
+
         content.innerHTML = notifs.map((n) => `
           <ion-card style="margin-bottom:6px;${n.isRead ? 'opacity:.7;' : 'border-left:3px solid var(--bgi-primary);'}">
             <div style="padding:10px 12px;display:flex;gap:8px;align-items:flex-start;">

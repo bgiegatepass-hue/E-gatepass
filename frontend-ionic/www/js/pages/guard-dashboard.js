@@ -264,7 +264,7 @@ Pages['guard-dashboard'] = {
       <ion-content style="--background:#000;">
         <div style="text-align:center;padding:10px 0;">
           <div id="scanner-container" style="position:relative;width:100%;max-width:500px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:12px;">
-            <video id="scanner-video" style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+            <video id="scanner-video" style="width:100%;height:100%;object-fit:contain;transform:none;display:block;background:#000;"></video>
             <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:65%;height:65%;border:2px solid rgba(255,255,255,0.6);border-radius:12px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,0.3);"></div>
             <div style="position:absolute;top:8%;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;background:rgba(0,0,0,0.6);padding:8px 20px;border-radius:20px;font-weight:500;">
               📷 Position QR in box
@@ -309,8 +309,9 @@ Pages['guard-dashboard'] = {
         const baseConstraints = {
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 640 },
-            height: { ideal: 640 }
+            width: { ideal: 1280, max: 1280 },
+            height: { ideal: 720, max: 720 },
+            aspectRatio: { ideal: 1.7777777778 }
           }
         };
 

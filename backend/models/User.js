@@ -31,6 +31,8 @@ const userSchema = new mongoose.Schema(
     profileImageUrl: { type: String }, // Firebase Storage public URL
     fcmToken: { type: String },
     isActive: { type: Boolean, default: false }, // Students/Faculty/Guard are inactive until approved; Admins default to true
+    resetOtp: { type: String, default: '' },
+    resetOtpExpiry: { type: Date, default: null },
     addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // which Admin created this account
 
     // ---- STUDENT-only fields ----

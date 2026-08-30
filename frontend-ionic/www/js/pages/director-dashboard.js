@@ -779,6 +779,13 @@ Pages['director-dashboard'] = {
       list.querySelectorAll('.member-card').forEach((card) => {
         card.addEventListener('click', () => this._showMemberDetail(card.dataset.id, this._memberRole));
       });
+      list.querySelectorAll('.view-profile-btn').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const id = btn.dataset.id;
+          if (id) this._showMemberDetail(id, this._memberRole);
+        });
+      });
       list.querySelectorAll('.member-delete-btn').forEach((btn) => {
         btn.addEventListener('click', async (event) => {
           event.stopPropagation();
@@ -828,7 +835,7 @@ Pages['director-dashboard'] = {
             </div>
             <div style="font-size:11px;color:var(--bgi-text-secondary);margin:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${UI.escapeHtml(m.email)}</div>
             <div style="font-size:11px;color:var(--bgi-text-secondary);">${subMap[m.role] || ''}</div>
-            ${m.department ? `<div style="font-size:10px;color:var(--bgi-text-secondary);"><b>Dept:</b> ${UI.escapeHtml(m.department)}</div>` : ''}
+            ${m.department ? `<div style="font-size:10px;color:var(--bgi-text-secondary);display:flex;justify-content:space-between;align-items:center;gap:8px;"><span><b>Dept:</b> ${UI.escapeHtml(m.department)}</span><ion-button fill="clear" size="small" class="view-profile-btn" data-id="${m._id || m.id}" style="font-size:11px;--padding-start:0;--padding-end:0;--color:var(--bgi-primary);height:20px;">View Profile</ion-button></div>` : `<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;"><ion-button fill="clear" size="small" class="view-profile-btn" data-id="${m._id || m.id}" style="font-size:11px;--padding-start:0;--padding-end:0;--color:var(--bgi-primary);height:20px;">View Profile</ion-button></div>`}
           </div>
         </div>
       </ion-card>`;
@@ -1540,6 +1547,24 @@ Pages['director-dashboard'] = {
         const res = await Api.get('/notifications', { limit: 30 });
         const notifs = res.data || [];
         if (!notifs.length) { content.innerHTML = '<p class="empty-state" style="font-size:12px;">No notifications</p>'; return; }
+
+        const unreadIds = notifs
+          .filter((n) => !(n.isRead ?? n.is_read))
+          .map((n) => n.id || n._id)
+          .filter(Boolean);
+
+        if (unreadIds.length) {
+          await Promise.all(unreadIds.map(async (id) => {
+            try { await Api.put(`/notifications/${id}/read`, {}); } catch (_) {}
+          }));
+          this._lastNotifCount = 0;
+          const badge = document.getElementById('notif-badge');
+          if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '';
+          }
+        }
+
         content.innerHTML = notifs.map((n) => `
           <ion-card style="margin-bottom:6px;${n.isRead ? 'opacity:.7;' : 'border-left:3px solid var(--bgi-primary);'}">
             <div style="padding:10px 12px;display:flex;gap:8px;align-items:flex-start;">

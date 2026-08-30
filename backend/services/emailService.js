@@ -31,7 +31,6 @@ function buildAccountApprovedEmailMailOptions({ toEmail, toName, loginUrl }) {
 
         <hr style="border:none;border-top:1px solid #E5E8EE;margin:24px 0 16px;" />
         <div style="display:flex;align-items:center;gap:8px;">
-          <img src="https://res.cloudinary.com/dnldcrhab/image/upload/v1783836915/KnW-hQLu_400x400_pdxxua.jpg" alt="BGI" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;" />
           <span style="color:#6B7280;font-size:12px;vertical-align:middle;">Bansal Group of Institutes</span>
         </div>
       </div>
@@ -97,25 +96,34 @@ async function sendOtpEmail({ toEmail, toName, otp, expiryMinutes }) {
       to: toEmail,
       subject: 'Your E-PASS verification OTP',
       html: `
-        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #E5E8EE;border-radius:12px;">
-          <a href="https://res.cloudinary.com/dnldcrhab/image/upload/v1782391118/18561_cxj7ez.png" target="_blank" rel="noopener noreferrer">
-            <img src="https://res.cloudinary.com/dnldcrhab/image/upload/v1782391118/18561_cxj7ez.png" alt="Bansal Group of Institutes" style="max-width:180px;height:auto;display:block;margin:0 auto 16px;" />
-          </a>
-          <h2 style="color:#0A4DAD;margin-bottom:4px;">E-PASS</h2>
-          <p style="color:#6B7280;margin-top:0;">Bansal Group of Institutes</p>
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #E5E8EE;border-radius:16px;background:#ffffff;">
+          <div style="text-align:center;margin-bottom:18px;">
+            <a href="https://res.cloudinary.com/dnldcrhab/image/upload/v1782391118/18561_cxj7ez.png" target="_blank" rel="noopener noreferrer">
+              <img src="https://res.cloudinary.com/dnldcrhab/image/upload/v1782391118/18561_cxj7ez.png" alt="Bansal Group of Institutes" style="max-width:180px;height:auto;display:block;margin:0 auto 10px;" />
+            </a>
+            <div style="font-size:12px;color:#6B7280;letter-spacing:0.12em;text-transform:uppercase;">Bansal Group of Institutes</div>
+          </div>
 
-          <p>Hello ${toName || ''},</p>
-          <p>Thank you for contacting us. We appreciate your interest in Bansal Group of Institutes.</p>
+          <h2 style="color:#0A4DAD;margin:0 0 8px;font-size:28px;">E-PASS OTP</h2>
+          <p style="margin:0 0 18px;color:#374151;font-size:15px;line-height:1.6;">
+            Hello ${toName || 'User'},
+          </p>
 
-          <p>Your One-Time Password (OTP) for E-PASS registration is:</p>
-          <div style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#0A4DAD;background:#F7F9FC;padding:16px;text-align:center;border-radius:10px;margin:16px 0;">
+          <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+            Your One-Time Password (OTP) for E-PASS verification is:
+          </p>
+
+          <div style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#0A4DAD;background:#F3F7FF;padding:18px 16px;text-align:center;border-radius:12px;margin:18px 0;border:1px solid rgba(10,77,173,0.12);">
             ${otp}
           </div>
-          <p style="color:#6B7280;font-size:13px;">This OTP is valid for ${expiryMinutes} minutes. If you didn't request this, you can ignore this email.</p>
+
+          <p style="margin:0 0 12px;color:#6B7280;font-size:13px;line-height:1.6;">
+            This OTP is valid for ${expiryMinutes} minutes. If you did not request this, you can safely ignore this email.
+          </p>
 
           <hr style="border:none;border-top:1px solid #E5E8EE;margin:24px 0 16px;" />
-          <div style="display:flex;align-items:center;gap:8px;">
-            <img src="https://res.cloudinary.com/dnldcrhab/image/upload/v1783836915/KnW-hQLu_400x400_pdxxua.jpg" alt="BGI" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;" />
+
+          <div style="display:flex;align-items:center;justify-content:center;">
             <span style="color:#6B7280;font-size:12px;vertical-align:middle;">Bansal Group of Institutes</span>
           </div>
         </div>

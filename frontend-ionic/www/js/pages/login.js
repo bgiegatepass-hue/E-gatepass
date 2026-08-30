@@ -603,12 +603,12 @@ Pages['login'] = {
 
     // Forgot password
     document.getElementById('forgot-password-link')?.addEventListener('click', () => {
-      UI.toast('Contact your campus admin to reset your password.', 'warning');
+      Router.navigate('forgot-password', { role: this._selectedRole || 'STUDENT' });
     });
 
     // HOD Forgot password
     document.getElementById('hod-forgot-password-link')?.addEventListener('click', () => {
-      UI.toast('Contact your campus admin to reset your password.', 'warning');
+      Router.navigate('forgot-password', { role: 'HOD' });
     });
 
     // Admin toggle
@@ -771,6 +771,55 @@ Pages['login'] = {
     this._bindRoleTabs();
     this._updateLoginMode();
     this._updateRegisterLink();
+  },
+
+  async _handleForgotPasswordFlow(forceRole = null) {
+    try {
+      const email = window.prompt('Enter your Gmail address');
+      if (!email || !email.trim()) {
+        return;
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail.includes('@')) {
+        UI.toast('Please enter a valid Gmail address', 'danger');
+        return;
+      }
+
+      await Api.post('/auth/forgot-password', { email: normalizedEmail });
+
+      const otp = window.prompt('OTP sent to your Gmail. Enter the 6-digit OTP');
+      if (!otp || !/^\d{6}$/.test(otp.trim())) {
+        UI.toast('Please enter the 6-digit OTP sent to your email', 'danger');
+        return;
+      }
+
+      let newPassword = window.prompt('Create your new password (minimum 6 characters)');
+      if (!newPassword || newPassword.length < 6) {
+        UI.toast('New password must be at least 6 characters long', 'danger');
+        return;
+      }
+
+      const confirmPassword = window.prompt('Confirm your new password');
+      if (!confirmPassword || newPassword !== confirmPassword) {
+        UI.toast('Password confirmation does not match', 'danger');
+        return;
+      }
+
+      await Api.post('/auth/forgot-password', {
+        email: normalizedEmail,
+        otp: otp.trim(),
+        password: newPassword,
+      });
+
+      const loginRole = forceRole || this._selectedRole || 'STUDENT';
+      const user = await Auth.login(normalizedEmail, newPassword, loginRole);
+      const dashMap = { ADMIN: 'admin-dashboard', FACULTY: 'faculty-dashboard', HOD: 'hod-dashboard', GUARD: 'guard-dashboard', DIRECTOR: 'director-dashboard', STUDENT: 'student-dashboard' };
+      await Router.reset(dashMap[user.role] || 'student-dashboard');
+      await UI.toast('Password reset successful. You are now logged in.', 'success');
+    } catch (error) {
+      await UI.toast(error.message || 'Password reset failed', 'danger');
+    }
   },
 
   _updateLoginMode() {

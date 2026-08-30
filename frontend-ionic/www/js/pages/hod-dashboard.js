@@ -458,7 +458,8 @@ Pages['hod-dashboard'] = {
       });
       const members = res.data || [];
       this._membersById = members.reduce((acc, member) => {
-        acc[member._id] = member;
+        const memberId = member._id || member.id;
+        if (memberId) acc[memberId] = member;
         return acc;
       }, {});
       if (!members.length) {
@@ -469,19 +470,27 @@ Pages['hod-dashboard'] = {
       list.querySelectorAll('.hod-member-card').forEach((card) => {
         card.addEventListener('click', () => this._showMemberDetail(card.dataset.memberId));
       });
+      list.querySelectorAll('.hod-view-profile-btn').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const memberId = btn.dataset.memberId;
+          if (memberId) this._showMemberDetail(memberId);
+        });
+      });
     } catch (e) {
       list.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }
   },
 
   _memberCardHtml(m) {
+    const memberId = m._id || m.id || '';
     const roleLabel = m.role === 'STUDENT'
       ? `Roll: ${UI.escapeHtml(m.rollNumber || '-')} · ${UI.escapeHtml(m.branch || '-')} Sem ${m.semester || '-'}`
       : m.role === 'FACULTY'
         ? UI.escapeHtml(m.designation || 'Faculty')
         : `Gate: ${UI.escapeHtml(m.assignedGate || '-')}`;
     return `
-      <ion-card class="hod-member-card" data-member-id="${UI.escapeHtml(m._id)}" style="margin-bottom:8px;cursor:pointer;">
+      <ion-card class="hod-member-card" data-member-id="${UI.escapeHtml(memberId)}" style="margin-bottom:8px;cursor:pointer;">
         <div style="padding:12px;display:flex;gap:10px;align-items:center;">
           <div style="width:44px;height:44px;border-radius:50%;background:var(--bgi-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <ion-icon name="person-circle-outline" style="font-size:24px;color:var(--bgi-primary);"></ion-icon>
@@ -493,9 +502,9 @@ Pages['hod-dashboard'] = {
             </div>
             <div style="font-size:11px;color:var(--bgi-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${UI.escapeHtml(m.email)}</div>
             <div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:4px;">${roleLabel}</div>
-            <div style="font-size:10px;color:var(--bgi-text-secondary);margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:10px;color:var(--bgi-text-secondary);margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
               <span>Dept: ${UI.escapeHtml(m.department || '-')}</span>
-              <span style="font-size:11px;color:var(--bgi-primary);font-weight:700;">View Profile</span>
+              <ion-button fill="clear" size="small" class="hod-view-profile-btn" data-member-id="${UI.escapeHtml(memberId)}" style="font-size:11px;--padding-start:0;--padding-end:0;--color:var(--bgi-primary);height:20px;">View Profile</ion-button>
             </div>
           </div>
         </div>
@@ -570,12 +579,18 @@ Pages['hod-dashboard'] = {
             <ion-button expand="block" fill="outline" id="hod-edit-profile-btn" style="font-size:12px;height:40px;--border-radius:10px;">
               <ion-icon name="create-outline" slot="start" style="font-size:14px;"></ion-icon> Edit
             </ion-button>
-            <ion-button expand="block" fill="outline" color="danger" id="hod-logout-btn" style="font-size:12px;height:40px;--border-radius:10px;">
+            <ion-button expand="block" fill="outline" color="danger" id="hod-profile-logout-btn" style="font-size:12px;height:40px;--border-radius:10px;">
               <ion-icon name="log-out-outline" slot="start" style="font-size:14px;"></ion-icon> Logout
             </ion-button>
           </div>
         </div>
       `;
+
+      document.getElementById('hod-profile-logout-btn').addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        Auth.logout();
+      });
 
       document.getElementById('hod-edit-photo-btn').addEventListener('click', () => {
         document.getElementById('hod-profile-photo-input').click();
@@ -822,6 +837,7 @@ Pages['hod-dashboard'] = {
   },
 
   async _loadRequests() {
+    this._requestsSearch = this._requestsSearch || '';
     const body = document.getElementById('hod-dash-body');
     const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
     body.innerHTML = `
@@ -832,6 +848,10 @@ Pages['hod-dashboard'] = {
       <ion-segment value="${this._requestsFilter}" id="hod-segment">
         ${statuses.map((s) => `<ion-segment-button value="${s}"><ion-label>${s}</ion-label></ion-segment-button>`).join('')}
       </ion-segment>
+      <ion-item lines="none" style="--background:#fff;border:1px solid var(--bgi-border);border-radius:12px;margin:12px 0 8px;">
+        <ion-icon name="search-outline" slot="start" color="medium"></ion-icon>
+        <ion-input id="hod-request-search" value="${UI.escapeHtml(this._requestsSearch)}" placeholder="Search by name, email, department"></ion-input>
+      </ion-item>
       <div id="hod-requests-list" class="mt-16"></div>
     `;
     document.getElementById('hod-request-view-segment').addEventListener('ionChange', (e) => {
@@ -840,6 +860,10 @@ Pages['hod-dashboard'] = {
     });
     document.getElementById('hod-segment').addEventListener('ionChange', (e) => {
       this._requestsFilter = e.detail.value;
+      this._renderList();
+    });
+    document.getElementById('hod-request-search')?.addEventListener('ionInput', (e) => {
+      this._requestsSearch = (e.detail.value || '').toLowerCase();
       this._renderList();
     });
     await this._renderList();
@@ -851,9 +875,20 @@ Pages['hod-dashboard'] = {
     try {
       const res = await Api.get('/hod/requests', { status: this._requestsFilter });
       const allRequests = res.data || [];
+      const searchTerm = (this._requestsSearch || '').trim().toLowerCase();
       const requests = allRequests.filter((r) => {
-        const role = (r.student?.role || '').toUpperCase();
-        return this._requestsView === 'faculty' ? role === 'FACULTY' : role !== 'FACULTY';
+        const role = (r.student?.role || r.faculty?.role || r.user?.role || '').toUpperCase();
+        const matchesView = this._requestsView === 'faculty' ? role === 'FACULTY' : role !== 'FACULTY';
+        if (!matchesView) return false;
+
+        if (!searchTerm) return true;
+
+        const name = (r.student?.name || r.faculty?.name || r.user?.name || '').toLowerCase();
+        const email = (r.student?.email || r.faculty?.email || r.user?.email || '').toLowerCase();
+        const department = (r.student?.department || r.faculty?.department || r.user?.department || '').toLowerCase();
+        const rollNumber = (r.student?.rollNumber || '').toLowerCase();
+        const targetText = `${name} ${email} ${department} ${rollNumber}`;
+        return targetText.includes(searchTerm);
       });
       if (requests.length === 0) {
         list.innerHTML = `<p class="empty-state">No ${this._requestsView === 'faculty' ? 'faculty' : 'student'} leave requests found</p>`;
@@ -888,14 +923,17 @@ Pages['hod-dashboard'] = {
   },
 
   async _showMemberDetail(memberId) {
-    if (!memberId) return;
-    let member = this._membersById[memberId];
+    const resolvedMemberId = memberId || '';
+    if (!resolvedMemberId) return;
+    let member = this._membersById[resolvedMemberId];
     try {
-      const res = await Api.get(`/hod/members/${memberId}`);
+      const res = await Api.get(`/hod/members/${resolvedMemberId}`);
       if (res && res.data) member = res.data;
     } catch (e) {
       if (!member) return UI.toast('Member details not loaded yet', 'danger');
     }
+
+    if (!member) return UI.toast('Member details not available', 'danger');
 
     const roleDetails = {
       STUDENT: `

@@ -3,6 +3,11 @@ const generateToken = require('../utils/generateToken');
 const User = require('../models/User');
 const { recordAudit } = require('../services/auditService');
 const { uploadBufferToCloudinary } = require('../services/fileUploadService');
+const { sendOtpEmail } = require('../services/emailService');
+
+function generateResetOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 // POST /api/v1/auth/login
 // No public self-registration — every account is created by Admin via /admin/members.
@@ -136,9 +141,82 @@ const updateMe = asyncHandler(async (req, res) => {
   res.json({ success: true, data: req.user.toJSON() });
 });
 
-// POST /api/v1/auth/forgot-password (stub — no public registration/reset flow; Admin resets manually)
+// POST /api/v1/auth/forgot-password
+// Flow:
+// 1) { email } -> send OTP to the user's email
+// 2) { email, otp } -> verify the OTP
+// 3) { email, otp, password } -> reset password and allow immediate login
 const forgotPassword = asyncHandler(async (req, res) => {
-  res.json({ success: true, message: 'Please contact your Admin to reset your password.' });
+  const { email, otp, password } = req.body;
+  const normalizedEmail = (email || '').toLowerCase().trim();
+
+  if (!normalizedEmail) {
+    return res.status(400).json({ success: false, message: 'Email is required' });
+  }
+
+  const user = await User.findOne({ email: normalizedEmail });
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'No account found with this email address' });
+  }
+
+  if (!otp && !password) {
+    const resetOtp = generateResetOtp();
+    user.resetOtp = resetOtp;
+    user.resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const emailSent = await sendOtpEmail({
+      toEmail: normalizedEmail,
+      toName: user.name || 'User',
+      otp: resetOtp,
+      expiryMinutes: 10,
+    });
+
+    return res.json({
+      success: true,
+      message: emailSent
+        ? 'OTP sent to your Gmail address.'
+        : 'OTP generated successfully. Please check your email configuration to receive the reset code.',
+      data: {
+        email: normalizedEmail,
+      },
+    });
+  }
+
+  const providedOtp = String(otp || '').trim();
+  if (!providedOtp) {
+    return res.status(400).json({ success: false, message: 'OTP is required' });
+  }
+
+  if (!user.resetOtp || user.resetOtp !== providedOtp) {
+    return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+  }
+
+  if (!user.resetOtpExpiry || Date.now() > new Date(user.resetOtpExpiry).getTime()) {
+    user.resetOtp = '';
+    user.resetOtpExpiry = null;
+    await user.save();
+    return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+  }
+
+  if (!password) {
+    return res.json({ success: true, message: 'OTP verified successfully.' });
+  }
+
+  if (String(password).length < 6) {
+    return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
+  }
+
+  user.password = password;
+  user.resetOtp = '';
+  user.resetOtpExpiry = null;
+  await user.save();
+
+  return res.json({
+    success: true,
+    message: 'Password updated successfully. You can now login with your new password.',
+    data: { email: normalizedEmail },
+  });
 });
 
 module.exports = { login, getMe, updateFcmToken, updateProfilePhoto, changePassword, updateMe, forgotPassword };
