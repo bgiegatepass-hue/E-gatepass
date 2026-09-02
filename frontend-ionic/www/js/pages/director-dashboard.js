@@ -211,6 +211,9 @@ Pages['director-dashboard'] = {
           return;
         }
         list.innerHTML = items.map((leave) => self._directorLeaveCardHtml(leave)).join('');
+        list.querySelectorAll('.director-attachment-btn').forEach((button) => {
+          button.addEventListener('click', () => self._showFacultyAttachment(button.dataset.url));
+        });
         list.querySelectorAll('.dir-leave-approve-btn').forEach((btn) => btn.addEventListener('click', () => decide(btn.dataset.id, true)));
         list.querySelectorAll('.dir-leave-reject-btn').forEach((btn) => btn.addEventListener('click', () => decide(btn.dataset.id, false)));
       } catch (e) {
@@ -262,7 +265,7 @@ Pages['director-dashboard'] = {
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Dept:</b> ${dept} &bull; <b>Designation:</b> ${designation}</div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Dates:</b> ${from} - ${to}</div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Reason:</b> ${reason}</div>
-          ${attachmentUrl ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--bgi-border);" /><a href="${UI.escapeHtml(attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--bgi-primary);">View Attachment</a></div>` : ''}
+          ${attachmentUrl ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--bgi-border);cursor:pointer;" class="director-attachment-btn" data-url="${UI.escapeHtml(attachmentUrl)}" /><button type="button" class="director-attachment-btn" data-url="${UI.escapeHtml(attachmentUrl)}" style="border:1px solid var(--bgi-primary);background:transparent;color:var(--bgi-primary);border-radius:10px;padding:6px 10px;font-size:11px;cursor:pointer;">View Photo</button></div>` : ''}
           ${locationText ? `<div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Location:</b> ${UI.escapeHtml(locationText)}</div>` : ''}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
             <ion-button expand="block" size="small" color="success" class="dir-leave-approve-btn" data-id="${id}" style="font-size:12px;">Approve</ion-button>
@@ -295,6 +298,9 @@ Pages['director-dashboard'] = {
         return;
       }
       list.innerHTML = requests.map((leave) => this._facultyLeaveHistoryCardHtml(leave)).join('');
+      list.querySelectorAll('.director-attachment-btn').forEach((button) => {
+        button.addEventListener('click', () => this._showFacultyAttachment(button.dataset.url));
+      });
     } catch (e) {
       list.innerHTML = `<p class="empty-state" style="font-size:12px;">${UI.escapeHtml(e.message)}</p>`;
     }
@@ -319,10 +325,28 @@ Pages['director-dashboard'] = {
           </div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:6px;"><b>Dates:</b> ${UI.formatDate(leave.fromDate || leave.from_date)} - ${UI.formatDate(leave.toDate || leave.to_date)}</div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Purpose:</b> ${UI.escapeHtml(String(leave.reason || leave.purpose || '-'))}</div>
-          ${attachmentUrl ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--bgi-border);" /><a href="${UI.escapeHtml(attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--bgi-primary);">View Attachment</a></div>` : ''}
+          ${attachmentUrl ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--bgi-border);cursor:pointer;" class="director-attachment-btn" data-url="${UI.escapeHtml(attachmentUrl)}" /><button type="button" class="director-attachment-btn" data-url="${UI.escapeHtml(attachmentUrl)}" style="border:1px solid var(--bgi-primary);background:transparent;color:var(--bgi-primary);border-radius:10px;padding:6px 10px;font-size:11px;cursor:pointer;">View Photo</button></div>` : ''}
           <div style="font-size:10px;color:var(--bgi-text-secondary);margin-top:6px;">Applied: ${UI.formatDate(leave.appliedOn || leave.applied_on)}</div>
         </div>
       </ion-card>`;
+  },
+
+  _showFacultyAttachment(attachmentUrl) {
+    if (!attachmentUrl) return;
+    const modal = document.createElement('ion-modal');
+    modal.cssText = '--height:85%;--width:min(620px, 94vw);--border-radius:18px;';
+    modal.innerHTML = `
+      <ion-header><ion-toolbar>
+        <ion-title style="font-size:15px;">Medical Attachment</ion-title>
+        <ion-buttons slot="end"><ion-button id="faculty-attachment-close" style="font-size:13px;">Close</ion-button></ion-buttons>
+      </ion-toolbar></ion-header>
+      <ion-content class="ion-padding" style="display:flex;align-items:center;justify-content:center;">
+        <img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="display:block;max-width:100%;max-height:100%;border-radius:12px;object-fit:contain;" />
+      </ion-content>
+    `;
+    document.body.appendChild(modal);
+    modal.present();
+    modal.querySelector('#faculty-attachment-close')?.addEventListener('click', () => modal.dismiss());
   },
 
   _renderDepartmentBars(departments = []) {
