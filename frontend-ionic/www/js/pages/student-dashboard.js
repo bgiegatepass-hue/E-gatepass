@@ -814,7 +814,10 @@ Pages['student-dashboard'] = {
         return;
       }
       list.innerHTML = await UI.leaveCardsHtml(requests, { clickableIfApproved: true });
-      UI.attachLeaveCardHandlers(list, { onCardClick: (id) => Router.navigate('epass', { leaveRequestId: id }) });
+      UI.attachLeaveCardHandlers(list, {
+        onCardClick: (id) => Router.navigate('epass', { leaveRequestId: id }),
+        onAttachmentView: (attachmentUrl) => this._showMedicalAttachment(attachmentUrl),
+      });
     } catch (e) {
       list.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }
@@ -829,10 +832,31 @@ Pages['student-dashboard'] = {
       body.innerHTML = requests.length === 0
         ? `<div style="text-align:center;padding:30px 0;color:var(--bgi-text-secondary);font-size:13px;">No leave history yet</div>`
         : await UI.leaveCardsHtml(requests, { clickableIfApproved: true });
-      UI.attachLeaveCardHandlers(body, { onCardClick: (id) => Router.navigate('epass', { leaveRequestId: id }) });
+      UI.attachLeaveCardHandlers(body, {
+        onCardClick: (id) => Router.navigate('epass', { leaveRequestId: id }),
+        onAttachmentView: (attachmentUrl) => this._showMedicalAttachment(attachmentUrl),
+      });
     } catch (e) {
       body.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }
+  },
+
+  _showMedicalAttachment(attachmentUrl) {
+    if (!attachmentUrl) return;
+    const modal = document.createElement('ion-modal');
+    modal.cssText = '--height:80%;--width:min(460px, 92vw);--border-radius:18px;';
+    modal.innerHTML = `
+      <ion-header><ion-toolbar>
+        <ion-title style="font-size:15px;">Medical Attachment</ion-title>
+        <ion-buttons slot="end"><ion-button id="student-attachment-close" style="font-size:13px;">Close</ion-button></ion-buttons>
+      </ion-toolbar></ion-header>
+      <ion-content class="ion-padding" style="display:flex;align-items:center;justify-content:center;">
+        <img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain;" />
+      </ion-content>
+    `;
+    document.body.appendChild(modal);
+    modal.present();
+    modal.querySelector('#student-attachment-close')?.addEventListener('click', () => modal.dismiss());
   },
 
   // ===================================================================
