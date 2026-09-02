@@ -31,6 +31,7 @@ const {
   approveDirector,
   rejectDirector,
   getPendingDirectorLeaveRequests,
+  getFacultyLeaveHistory,
   approveDirectorLeave,
   rejectDirectorLeave,
   getStatsToday,
@@ -77,6 +78,7 @@ router.put('/directors/:id/approve', approveDirector);
 router.put('/directors/:id/reject', rejectDirector);
 
 router.get('/leaves/pending', getPendingDirectorLeaveRequests);
+router.get('/leaves/faculty-history', getFacultyLeaveHistory);
 router.put('/leaves/:id/approve', approveDirectorLeave);
 router.put('/leaves/:id/reject', rejectDirectorLeave);
 

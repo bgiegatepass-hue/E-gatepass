@@ -41,9 +41,17 @@ Pages['epass'] = {
             ${(() => {
               const role = (epass.leave_request?.requester_role || epass.leave_request?.requesterRole || epass.requester_role || epass.requesterRole || 'STUDENT').toUpperCase();
               const label = role === 'FACULTY' ? 'Faculty' : role === 'HOD' ? 'HOD' : role === 'DIRECTOR' ? 'Director' : 'Student';
+              const isEmployeeRole = ['FACULTY', 'HOD', 'DIRECTOR'].includes(role);
+              const employeeId = epass.employee_id || epass.employeeId || epass.leave_request?.employee_id || epass.leave_request?.employeeId || epass.roll_number || '';
               return `<div><b>${label}:</b> ${UI.escapeHtml(epass.leave_request?.student_name || epass.student_name || epass.studentName || '')}</div>`;
             })()}
-            <div><b>Roll No:</b> ${UI.escapeHtml(epass.roll_number || epass.rollNumber || '')}</div>
+            ${(() => {
+              const role = (epass.leave_request?.requester_role || epass.leave_request?.requesterRole || epass.requester_role || epass.requesterRole || 'STUDENT').toUpperCase();
+              const isEmployeeRole = ['FACULTY', 'HOD', 'DIRECTOR'].includes(role);
+              const employeeId = epass.employee_id || epass.employeeId || epass.leave_request?.employee_id || epass.leave_request?.employeeId || '';
+              const rollNumber = epass.roll_number || epass.rollNumber || '';
+              return `<div><b>${isEmployeeRole ? 'Employee ID' : 'Roll No'}:</b> ${UI.escapeHtml(isEmployeeRole ? (employeeId || rollNumber) : rollNumber)}</div>`;
+            })()}
             <div><b>Branch:</b> ${UI.escapeHtml(epass.branch || '')}</div>
             <div><b>Leave Type:</b> ${UI.escapeHtml(epass.leave_type || epass.leaveType || '')}</div>
             <div><b>Dates:</b> ${UI.escapeHtml(`${UI.formatDate(epass.from_date || epass.fromDate)} - ${UI.formatDate(epass.to_date || epass.toDate)}`)}</div>

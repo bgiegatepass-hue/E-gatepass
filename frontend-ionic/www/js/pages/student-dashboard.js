@@ -109,6 +109,14 @@ Pages['student-dashboard'] = {
     else if (tab === 'profile') this._loadProfile();
   },
 
+  _resolveStudentEnrollment(user) {
+    return user?.enrollmentNumber || user?.rollNumber || user?.profile?.enrollmentNumber || user?.profile?.roll_number || user?.profile?.rollNumber || '-';
+  },
+
+  _resolveStudentSemester(user) {
+    return user?.semester ?? user?.profile?.semester ?? '';
+  },
+
   // ===================================================================
   // GET USER LOCATION
   // ===================================================================
@@ -199,6 +207,14 @@ Pages['student-dashboard'] = {
     }
   },
 
+  _resolveStudentEnrollment(user) {
+    return user?.enrollmentNumber || user?.rollNumber || user?.profile?.enrollmentNumber || user?.profile?.roll_number || user?.profile?.rollNumber || '-';
+  },
+
+  _resolveStudentSemester(user) {
+    return user?.semester ?? user?.profile?.semester ?? '';
+  },
+
   async _loadHome() {
     const body = document.getElementById('dash-body');
     body.innerHTML = `<div class="text-center mt-24"><ion-spinner color="primary"></ion-spinner></div>`;
@@ -211,8 +227,9 @@ Pages['student-dashboard'] = {
       const requests = historyRes.data || [];
       const counts = { total: requests.length, approved: 0, pending: 0, rejected: 0 };
       requests.forEach((r) => {
-        if (r.overall_status === 'Approved') counts.approved++;
-        else if (r.overall_status === 'Rejected') counts.rejected++;
+        const status = (r.overall_status || r.overallStatus || '').toString().trim();
+        if (status === 'Approved') counts.approved++;
+        else if (status === 'Rejected') counts.rejected++;
         else counts.pending++;
       });
       const unread = Number(unreadRes.data?.count || 0);
@@ -270,8 +287,8 @@ Pages['student-dashboard'] = {
           </div>
           <div style="flex:1;min-width:0;color:#fff;">
             <div style="font-size:16px;font-weight:700;">Welcome, ${UI.escapeHtml(user.name)}</div>
-            <div style="font-size:12px;opacity:0.85;margin-top:2px;">Roll No. ${UI.escapeHtml(user.profile?.roll_number || '-')}</div>
-            <div style="font-size:11px;opacity:0.7;">${UI.escapeHtml(user.profile?.branch || '')} ${user.profile?.semester ? '- Sem ' + user.profile.semester : ''}</div>
+            <div style="font-size:12px;opacity:0.85;margin-top:2px;">Enroll No. ${UI.escapeHtml(this._resolveStudentEnrollment(user))}</div>
+            <div style="font-size:11px;opacity:0.7;">${UI.escapeHtml(user.profile?.branch || user.branch || '')} ${this._resolveStudentSemester(user) ? '- Sem ' + this._resolveStudentSemester(user) : ''}</div>
           </div>
           <div style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:10px;color:#fff;font-weight:600;white-space:nowrap;">Student</div>
         </div>
@@ -488,15 +505,15 @@ Pages['student-dashboard'] = {
               </div>
               <div>
                 <label style="font-size:10px;font-weight:700;color:var(--bgi-text-secondary);display:block;padding-top:2px;letter-spacing:0.5px;text-transform:uppercase;">Enrollment No</label>
-                <ion-input id="enrollment-number" value="${UI.escapeHtml(currentUser.rollNumber || currentUser.profile?.roll_number || '')}" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:2px;--padding-bottom:2px;"></ion-input>
+                <ion-input id="enrollment-number" value="${UI.escapeHtml(this._resolveStudentEnrollment(currentUser))}" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:2px;--padding-bottom:2px;"></ion-input>
               </div>
               <div>
                 <label style="font-size:10px;font-weight:700;color:var(--bgi-text-secondary);display:block;padding-top:2px;letter-spacing:0.5px;text-transform:uppercase;">Branch</label>
                 <ion-input id="student-branch" value="${UI.escapeHtml(currentUser.branch || currentUser.profile?.branch || '')}" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:2px;--padding-bottom:2px;"></ion-input>
               </div>
               <div>
-                <label style="font-size:10px;font-weight:700;color:var(--bgi-text-secondary);display:block;padding-top:2px;letter-spacing:0.5px;text-transform:uppercase;">Semester</label>
-                <ion-input id="student-semester" value="${UI.escapeHtml(currentUser.semester || currentUser.profile?.semester || '')}" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:2px;--padding-bottom:2px;"></ion-input>
+                <label style="font-size:10px;font-weight:700;color:var(--bgi-text-secondary);display:block;padding-top:2px;letter-spacing:0.5px;text-transform:uppercase;">Semester <span style="color:var(--bgi-danger);">*</span></label>
+                <ion-input id="student-semester" value="${UI.escapeHtml(this._resolveStudentSemester(currentUser))}" style="font-size:13px;font-weight:500;color:var(--bgi-text);--padding-top:2px;--padding-bottom:2px;"></ion-input>
               </div>
             </div>
             <div style="margin-top:8px;">
@@ -719,6 +736,11 @@ Pages['student-dashboard'] = {
         errorEl.textContent = 'Please select leave date'; 
         return; 
       }
+      if (!semester) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = 'Please fill semester before applying leave';
+        return;
+      }
 
       errorEl.style.display = 'none';
       const btn = modal.querySelector('#apply-submit-btn');
@@ -822,6 +844,8 @@ Pages['student-dashboard'] = {
     try {
       const user = await Auth.fetchProfile();
       const photoUrl = user.profileImageUrl || user.profile?.photo || '';
+      const enrollmentValue = this._resolveStudentEnrollment(user);
+      const semesterValue = this._resolveStudentSemester(user);
       const profileRows = [
         ['Role', 'Student'],
         ['Name', user.name || '-'],
@@ -830,9 +854,9 @@ Pages['student-dashboard'] = {
         ['Campus', user.campus || '-'],
         ['College', user.college || '-'],
         ['Department', user.department || '-'],
-        ['Roll Number', user.rollNumber || user.profile?.roll_number || '-'],
+        ['Enrollment No', enrollmentValue],
         ['Branch', user.branch || user.profile?.branch || '-'],
-        ['Semester', user.semester || user.profile?.semester || '-'],
+        ['Semester', semesterValue || '-'],
       ];
 
       body.innerHTML = `
@@ -851,7 +875,7 @@ Pages['student-dashboard'] = {
           </div>
           <p style="font-weight:700;font-size:18px;margin:8px 0 2px;color:var(--bgi-text);">${UI.escapeHtml(user.name)}</p>
           <p style="color:var(--bgi-text-secondary);margin:0;font-size:13px;">${UI.escapeHtml(user.email)}</p>
-          <p style="color:var(--bgi-text-secondary);margin:2px 0 0;font-size:12px;">${UI.escapeHtml(user.branch || user.profile?.branch || '')} ${user.semester || user.profile?.semester ? '- Sem ' + (user.semester || user.profile?.semester) : ''}</p>
+          <p style="color:var(--bgi-text-secondary);margin:2px 0 0;font-size:12px;">${UI.escapeHtml(user.branch || user.profile?.branch || '')} ${semesterValue ? '- Sem ' + semesterValue : ''}</p>
         </div>
 
         <ion-card style="border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-top:14px;">
@@ -1031,8 +1055,8 @@ Pages['student-dashboard'] = {
             <ion-input id="edit-semester" type="number" value="${user.semester || user.profile?.semester || ''}" style="font-size:13px;"></ion-input>
           </ion-item>
           <ion-item style="border:1px solid var(--bgi-border);border-radius:10px;margin-bottom:12px;--min-height:44px;">
-            <ion-label position="stacked" style="font-size:11px;font-weight:600;color:var(--bgi-text-secondary);">Roll Number</ion-label>
-            <ion-input id="edit-roll" value="${UI.escapeHtml(user.rollNumber || user.profile?.roll_number || '')}" style="font-size:13px;"></ion-input>
+            <ion-label position="stacked" style="font-size:11px;font-weight:600;color:var(--bgi-text-secondary);">Enrollment No</ion-label>
+            <ion-input id="edit-roll" value="${UI.escapeHtml(this._resolveStudentEnrollment(user))}" style="font-size:13px;"></ion-input>
           </ion-item>
         </ion-list>
         <ion-button expand="block" id="edit-profile-save" style="--border-radius:10px;height:42px;font-size:13px;font-weight:600;--background:var(--bgi-primary);">

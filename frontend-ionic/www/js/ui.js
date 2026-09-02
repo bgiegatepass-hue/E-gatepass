@@ -130,9 +130,11 @@ const UI = {
    * options: { showStudentName, clickableIfApproved, showFacultyActions, showHodActions }
    */
   leaveCardHtml(leave, options = {}) {
-    const { showStudentName = false, clickableIfApproved = false, showFacultyActions = false, showHodActions = false, locationText: forcedLocationText, showExitTimeOnly = false } = options;
+    const { showStudentName = false, clickableIfApproved = false, showFacultyActions = false, showHodActions = false, locationText: forcedLocationText, showExitTimeOnly = false, showStudentProfileButton = false } = options;
     const leaveId = leave.id || leave._id || '';
     const clickable = clickableIfApproved && leave.overall_status === 'Approved';
+    const studentId = leave.student?._id || leave.student?.id || leave.studentId || leave.student_id || '';
+    const attachmentUrl = leave.attachmentUrl || leave.attachment_url || '';
 
     let actionsHtml = '';
     const facultyStatus = leave.faculty_status || leave.facultyStatus;
@@ -183,7 +185,22 @@ const UI = {
         ${isFacultyRequest ? `${employeeId ? `<div class="leave-card-meta">Emp ID: ${this.escapeHtml(employeeId)}</div>` : ''}${designation ? `<div class="leave-card-meta">Designation: ${this.escapeHtml(designation)}</div>` : ''}${department ? `<div class="leave-card-meta">Department: ${this.escapeHtml(department)}</div>` : ''}` : `${(branch || semester || tgName) ? `<div class="leave-card-meta">${[branch ? `Branch: ${this.escapeHtml(branch)}` : '', semester ? `Sem: ${this.escapeHtml(semester)}` : '', tgName ? `TG: ${this.escapeHtml(tgName)}` : ''].filter(Boolean).join(' &nbsp;&bull;&nbsp; ')}</div>` : ''}`}
         ${locationText ? `<div class="leave-card-meta">Location: ${this.escapeHtml(locationText)}</div>` : ''}
         ${exitTimeHtml}
+        ${attachmentUrl ? `
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <img src="${this.escapeHtml(attachmentUrl)}" alt="Leave attachment" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--bgi-border);cursor:pointer;" class="leave-card-attachment-thumb" data-attachment-url="${this.escapeHtml(attachmentUrl)}" />
+            <ion-button fill="outline" size="small" class="leave-card-attachment-btn" data-attachment-url="${this.escapeHtml(attachmentUrl)}" style="font-size:11px;--border-radius:10px;--padding-start:10px;--padding-end:10px;">
+              View Photo
+            </ion-button>
+          </div>
+        ` : ''}
         <div class="leave-card-meta">Applied on: ${this.formatDate(leave.applied_on || leave.appliedOn)}</div>
+        ${showStudentProfileButton && studentId ? `
+          <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+            <ion-button fill="clear" size="small" class="leave-card-profile-btn" data-student-id="${this.escapeHtml(studentId)}" style="font-size:11px;--padding-start:0;--padding-end:0;--color:var(--bgi-primary);height:20px;">
+              View Profile
+            </ion-button>
+          </div>
+        ` : ''}
         <div class="leave-card-statuses">
           ${this.approvalStepHtml('HOD', hodStatus)}
           ${isFacultyRequest ? this.approvalStepHtml('Director', directorStatus) : ''}
@@ -212,7 +229,7 @@ const UI = {
   },
 
   /** Attaches delegated click handlers for approve/reject buttons + clickable cards inside a container. */
-  attachLeaveCardHandlers(container, { onApprove, onReject, onCardClick } = {}) {
+  attachLeaveCardHandlers(container, { onApprove, onReject, onCardClick, onStudentProfile, onAttachmentView } = {}) {
     if (onApprove) {
       container.querySelectorAll('.action-approve').forEach((btn) => {
         btn.addEventListener('click', (e) => {
@@ -232,6 +249,22 @@ const UI = {
     if (onCardClick) {
       container.querySelectorAll('.leave-card-clickable').forEach((card) => {
         card.addEventListener('click', () => onCardClick(card.dataset.leaveId));
+      });
+    }
+    if (onStudentProfile) {
+      container.querySelectorAll('.leave-card-profile-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onStudentProfile(btn.dataset.studentId);
+        });
+      });
+    }
+    if (onAttachmentView) {
+      container.querySelectorAll('.leave-card-attachment-btn, .leave-card-attachment-thumb').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onAttachmentView(el.dataset.attachmentUrl);
+        });
       });
     }
   },

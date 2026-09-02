@@ -397,6 +397,94 @@ const getStats = asyncHandler(async (req, res) => {
   });
 });
 
+// GET /api/v1/hod/history?from=&to=
+const getHodHistory = asyncHandler(async (req, res) => {
+  const fromParam = req.query.from;
+  const toParam = req.query.to;
+
+  const fromDate = fromParam ? new Date(fromParam) : null;
+  const toDate = toParam ? new Date(toParam) : null;
+
+  if (fromParam && Number.isNaN(fromDate?.getTime?.())) {
+    return res.status(400).json({ success: false, message: 'Invalid from date' });
+  }
+  if (toParam && Number.isNaN(toDate?.getTime?.())) {
+    return res.status(400).json({ success: false, message: 'Invalid to date' });
+  }
+
+  const routingConditions = getHodRoutingConditions(req.user.department, req.user.branch);
+  const deptMatchConditions = [
+    { 'studentDoc.department': req.user.department },
+    { 'studentDoc.branch': req.user.department },
+  ];
+  if (routingConditions.includes('CSE')) {
+    deptMatchConditions.push({ 'studentDoc.branch': { $in: ['AIML', 'DATA SCIENCE', 'CYBER SECURITY'] } });
+  }
+
+  const pipeline = [
+    { $lookup: { from: 'users', localField: 'student', foreignField: '_id', as: 'studentDoc' } },
+    { $unwind: '$studentDoc' },
+    { $match: { $or: [
+      { hod: req.user._id },
+      { $and: [ { hod: { $exists: false } }, { $or: deptMatchConditions } ] },
+    ] } },
+  ];
+
+  if (fromDate || toDate) {
+    const dateFilter = {};
+    if (fromDate) dateFilter.$gte = new Date(`${fromDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    if (toDate) dateFilter.$lte = new Date(`${toDate.toISOString().slice(0, 10)}T23:59:59.999Z`);
+    pipeline.push({ $match: { fromDate: dateFilter } });
+  }
+
+  pipeline.push({
+    $group: {
+      _id: { $dateToString: { format: '%Y-%m-%d', date: '$fromDate' } },
+      students: {
+        $push: {
+          studentId: '$student',
+          name: '$studentName',
+          rollNumber: '$enrollmentNumber',
+          department: '$studentDoc.department',
+          branch: '$studentDoc.branch',
+          fromDate: '$fromDate',
+          toDate: '$toDate',
+          overallStatus: '$overallStatus',
+          leaveType: '$leaveType',
+          reason: '$reason',
+        },
+      },
+    },
+  });
+  pipeline.push({ $sort: { _id: 1 } });
+
+  const grouped = await LeaveRequest.aggregate(pipeline);
+  const entries = grouped
+    .map((entry) => ({
+      date: entry._id,
+      count: entry.students.length,
+      students: entry.students.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return (b.date || '').localeCompare(a.date || '');
+    });
+
+  const totalStudents = entries.reduce((sum, item) => sum + item.count, 0);
+  const peakDay = entries[0] ? { date: entries[0].date, count: entries[0].count } : null;
+
+  res.json({
+    success: true,
+    data: {
+      totalStudents,
+      dateCount: entries.length,
+      peakDay,
+      entries,
+    },
+    message: 'Date-wise student leave history for the selected period',
+  });
+});
+
 // GET /api/v1/hod/reports?from=&to=&format=
 const getReports = asyncHandler(async (req, res) => {
   const requests = await LeaveRequest.find({ hod: req.user._id }).populate('student', 'name rollNumber department');
@@ -468,4 +556,5 @@ module.exports = {
   rejectRequest,
   getStats,
   getReports,
+  getHodHistory,
 };

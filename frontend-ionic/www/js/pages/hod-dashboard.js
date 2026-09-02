@@ -22,6 +22,7 @@ Pages['hod-dashboard'] = {
         </ion-buttons>
         <ion-title id="hod-dash-title">HOD Dashboard</ion-title>
         <ion-buttons slot="end">
+          <ion-button id="hod-history-btn" style="--color:var(--bgi-primary);margin-right:6px;"><ion-icon name="time-outline" slot="icon-only" style="font-size:20px;"></ion-icon></ion-button>
           <ion-button id="hod-notif-btn" style="--color:var(--bgi-primary);margin-right:6px;"><ion-icon name="notifications-outline" slot="icon-only" style="font-size:20px;"></ion-icon></ion-button>
           <ion-button id="hod-logout-btn"><ion-icon name="log-out-outline" slot="icon-only"></ion-icon></ion-button>
         </ion-buttons>
@@ -51,6 +52,7 @@ Pages['hod-dashboard'] = {
       event.stopPropagation();
       Auth.logout();
     });
+    document.getElementById('hod-history-btn')?.addEventListener('click', () => this._showHodHistoryModal());
     document.getElementById('hod-notif-btn')?.addEventListener('click', () => {
       // Open the shared notifications modal in full-screen (reuse admin dashboard loader)
       if (Pages['admin-dashboard'] && typeof Pages['admin-dashboard']._loadNotifications === 'function') {
@@ -86,10 +88,6 @@ Pages['hod-dashboard'] = {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <ion-button fill="clear" size="small" id="hod-back-to-members-btn"><ion-icon name="arrow-back-outline" slot="icon-only" style="font-size:18px;"></ion-icon></ion-button>
         <h2 style="margin:0;font-size:15px;font-weight:700;">${this._memberRole === 'STUDENT' ? 'Students' : this._memberRole === 'FACULTY' ? 'Faculty' : 'Guards'}</h2>
-        ${this._memberRole !== 'HOD' ? `
-        <ion-button size="small" id="hod-add-member-top-btn" style="margin-left:auto;font-size:12px;">
-          <ion-icon name="add" slot="start" style="font-size:14px;"></ion-icon>Add
-        </ion-button>` : ''}
       </div>
 
       ${this._memberRole === 'STUDENT' ? `
@@ -117,14 +115,6 @@ Pages['hod-dashboard'] = {
       <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;--min-height:38px;margin-bottom:8px;">
         <ion-icon name="search-outline" slot="start" color="medium" style="font-size:16px;"></ion-icon>
         <ion-input id="hod-member-search" placeholder="Search name, email, roll..." style="font-size:13px;"></ion-input>
-      </ion-item>
-
-      <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;--min-height:38px;margin-bottom:8px;">
-        <ion-icon name="business-outline" slot="start" color="medium" style="font-size:16px;"></ion-icon>
-        <ion-select id="hod-member-college-select" interface="action-sheet" placeholder="All Colleges" style="font-size:13px;">
-          <ion-select-option value="">All Colleges</ion-select-option>
-          ${APP_CONFIG.campuses.map((c) => `<ion-select-option value="${UI.escapeHtml(c.code)}">${UI.escapeHtml(c.label)}</ion-select-option>`).join('')}
-        </ion-select>
       </ion-item>
 
       <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;--min-height:38px;margin-bottom:10px;">
@@ -164,7 +154,6 @@ Pages['hod-dashboard'] = {
 
     // Back button
     document.getElementById('hod-back-to-members-btn').addEventListener('click', () => this._loadMembers());
-    document.getElementById('hod-add-member-top-btn')?.addEventListener('click', () => this._goToAddMember(this._memberRole));
     document.getElementById('hod-faculty-pending-banner')?.addEventListener('click', () => this._showPendingFacultyApprovals());
     document.getElementById('hod-guard-pending-banner')?.addEventListener('click', () => this._showPendingGuardApprovals());
 
@@ -185,11 +174,6 @@ Pages['hod-dashboard'] = {
         this._searchTerm = e.detail.value;
         this._renderMembersList();
       }, 300);
-    });
-
-    document.getElementById('hod-member-college-select')?.addEventListener('ionChange', (e) => {
-      this._collegeFilter = e.detail.value;
-      this._renderMembersList();
     });
 
     const deptSel = document.getElementById('hod-member-department-select');
@@ -836,6 +820,120 @@ Pages['hod-dashboard'] = {
     return `<svg width="130" height="130" viewBox="0 0 130 130">${circles}</svg>`;
   },
 
+  async _showHodHistoryModal() {
+    const modal = document.createElement('ion-modal');
+    modal.cssText = '--height:90%;--width:min(760px, 92vw);--border-radius:18px;';
+    modal.innerHTML = `
+      <ion-header><ion-toolbar>
+        <ion-title style="font-size:15px;">Student Leave History</ion-title>
+        <ion-buttons slot="end"><ion-button id="hod-history-close" style="font-size:13px;">Close</ion-button></ion-buttons>
+      </ion-toolbar></ion-header>
+      <ion-content class="ion-padding">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;--min-height:42px;">
+            <ion-label position="stacked" style="font-size:11px;color:var(--bgi-text-secondary);">From</ion-label>
+            <ion-input id="hod-history-from" type="date"></ion-input>
+          </ion-item>
+          <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;--min-height:42px;">
+            <ion-label position="stacked" style="font-size:11px;color:var(--bgi-text-secondary);">To</ion-label>
+            <ion-input id="hod-history-to" type="date"></ion-input>
+          </ion-item>
+        </div>
+        <div id="hod-history-summary" style="margin-bottom:10px;"></div>
+        <div id="hod-history-list"></div>
+      </ion-content>
+    `;
+
+    document.body.appendChild(modal);
+    await modal.present();
+    const closeBtn = modal.querySelector('#hod-history-close');
+    closeBtn?.addEventListener('click', () => modal.dismiss());
+
+    const summaryEl = modal.querySelector('#hod-history-summary');
+    const listEl = modal.querySelector('#hod-history-list');
+    const fromInput = modal.querySelector('#hod-history-from');
+    const toInput = modal.querySelector('#hod-history-to');
+
+    const loadHistory = async () => {
+      const from = fromInput.value || '';
+      const to = toInput.value || '';
+      listEl.innerHTML = this._spinner();
+      try {
+        const res = await Api.get('/hod/history', { from, to });
+        const payload = res.data || {};
+        const entries = Array.isArray(payload.entries) ? payload.entries : [];
+        const totalStudents = Number(payload.totalStudents || entries.reduce((sum, day) => sum + Number(day.count || 0), 0));
+        const peakDay = payload.peakDay || entries[0] || null;
+        summaryEl.innerHTML = `
+          <ion-card style="margin:0;">
+            <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <div>
+                <div style="font-size:11px;color:var(--bgi-text-secondary);">Total students</div>
+                <div style="font-size:18px;font-weight:800;">${totalStudents}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;color:var(--bgi-text-secondary);">Days</div>
+                <div style="font-size:18px;font-weight:800;">${entries.length}</div>
+              </div>
+            </div>
+            ${peakDay ? `
+              <div style="padding:0 12px 12px;">
+                <div style="border-top:1px solid var(--bgi-border);padding-top:8px;">
+                  <div style="font-size:11px;color:var(--bgi-text-secondary);margin-bottom:2px;">Peak day</div>
+                  <div style="font-weight:700;font-size:13px;">${UI.escapeHtml(peakDay.date || '-')}</div>
+                  <div style="font-size:11px;color:var(--bgi-text-secondary);">${peakDay.count || 0} students</div>
+                </div>
+              </div>
+            ` : ''}
+          </ion-card>
+        `;
+
+        if (!entries.length) {
+          listEl.innerHTML = '<p class="empty-state">No student leave records found for this date range.</p>';
+          return;
+        }
+
+        listEl.innerHTML = entries.map((entry) => `
+          <ion-card style="margin:0 0 10px;">
+            <div style="padding:10px 12px;border-bottom:1px solid var(--bgi-border);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <strong style="font-size:13px;">${UI.escapeHtml(entry.date || '-')}</strong>
+              <span class="status-badge status-approved" style="font-size:10px;padding:3px 8px;">${entry.count || 0} student${Number(entry.count) === 1 ? '' : 's'}</span>
+            </div>
+            <div style="padding:8px 10px 10px;display:flex;flex-direction:column;gap:8px;">
+              ${((entry.students || []).map((student) => `
+                <div style="padding:8px 10px;border:1px solid var(--bgi-border);border-radius:10px;background:var(--bgi-bg);">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                    <strong style="font-size:12px;">${UI.escapeHtml(student.name || 'Unknown')}</strong>
+                    <span style="font-size:10px;color:var(--bgi-text-secondary);">${UI.escapeHtml(student.overallStatus || 'Pending')}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:4px;">
+                    ${UI.escapeHtml(student.rollNumber || '-')}&nbsp;•&nbsp;${UI.escapeHtml(student.department || '-')}
+                    ${student.branch ? `&nbsp;•&nbsp;${UI.escapeHtml(student.branch)}` : ''}
+                  </div>
+                  <div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:3px;">
+                    ${student.fromDate ? new Date(student.fromDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                    ${student.toDate ? ` to ${new Date(student.toDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                  </div>
+                </div>
+              `)).join('') || '<p class="empty-state">No student details for this day.</p>'}
+            </div>
+          </ion-card>
+        `).join('');
+      } catch (e) {
+        summaryEl.innerHTML = '';
+        listEl.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message || 'Unable to load history')}</p>`;
+      }
+    };
+
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+    fromInput.value = thirtyDaysAgo.toISOString().slice(0, 10);
+    toInput.value = today.toISOString().slice(0, 10);
+    fromInput.addEventListener('ionInput', loadHistory);
+    toInput.addEventListener('ionInput', loadHistory);
+    loadHistory();
+  },
+
   async _loadRequests() {
     this._requestsSearch = this._requestsSearch || '';
     const body = document.getElementById('hod-dash-body');
@@ -894,10 +992,30 @@ Pages['hod-dashboard'] = {
         list.innerHTML = `<p class="empty-state">No ${this._requestsView === 'faculty' ? 'faculty' : 'student'} leave requests found</p>`;
         return;
       }
-      list.innerHTML = await UI.leaveCardsHtml(requests, { showStudentName: true, showHodActions: true, showExitTimeOnly: true });
+      list.innerHTML = await UI.leaveCardsHtml(requests, { showStudentName: true, showHodActions: true, showExitTimeOnly: true, showStudentProfileButton: true });
       UI.attachLeaveCardHandlers(list, {
         onApprove: (id) => this._decide(id, true),
         onReject: (id) => this._decide(id, false),
+        onStudentProfile: (studentId) => {
+          if (studentId) this._showMemberDetail(studentId);
+        },
+        onAttachmentView: (attachmentUrl) => {
+          if (!attachmentUrl) return;
+          const modal = document.createElement('ion-modal');
+          modal.cssText = '--height:80%;--width:min(460px, 92vw);--border-radius:18px;';
+          modal.innerHTML = `
+            <ion-header><ion-toolbar>
+              <ion-title style="font-size:15px;">Medical Attachment</ion-title>
+              <ion-buttons slot="end"><ion-button id="hod-attachment-close" style="font-size:13px;">Close</ion-button></ion-buttons>
+            </ion-toolbar></ion-header>
+            <ion-content class="ion-padding" style="display:flex;align-items:center;justify-content:center;">
+              <img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain;" />
+            </ion-content>
+          `;
+          document.body.appendChild(modal);
+          modal.present();
+          modal.querySelector('#hod-attachment-close')?.addEventListener('click', () => modal.dismiss());
+        },
       });
     } catch (e) {
       list.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;

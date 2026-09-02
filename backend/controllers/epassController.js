@@ -64,7 +64,7 @@ async function issueEpass(leave) {
 
 // GET /api/v1/epass/:leaveRequestId
 const getEpass = asyncHandler(async (req, res) => {
-  const leave = await LeaveRequest.findById(req.params.leaveRequestId).populate('student', 'name rollNumber branch semester department');
+  const leave = await LeaveRequest.findById(req.params.leaveRequestId).populate('student', 'name rollNumber branch semester department employeeId');
   if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
 
   if (leave.overallStatus !== 'Approved') {
@@ -79,6 +79,7 @@ const getEpass = asyncHandler(async (req, res) => {
     success: true,
     data: {
       ...payload,
+      employee_id: leave.student?.employeeId || leave.employeeId || '',
       pass_id: payload.passId,
       qr_code_url: payload.qrCodeUrl,
       pdf_url: payload.pdfUrl,
@@ -99,6 +100,7 @@ const getEpass = asyncHandler(async (req, res) => {
         purpose: leave.reason || leave.purpose || '',
         student_name: leave.studentName || leave.student?.name || '',
         roll_number: leave.enrollmentNumber || leave.student?.rollNumber || '',
+        employee_id: leave.student?.employeeId || leave.employeeId || '',
         branch: leave.branch || leave.student?.branch || '',
         semester: leave.semester || leave.student?.semester || '',
         from_date: leave.fromDate,

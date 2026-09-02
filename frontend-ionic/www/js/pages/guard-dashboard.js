@@ -4,6 +4,7 @@
 
 Pages['guard-dashboard'] = {
   _activeTab: 'home',
+  _guardHistoryScans: [],
 
   render() {
     this._activeTab = 'scan';
@@ -100,9 +101,13 @@ Pages['guard-dashboard'] = {
     body.innerHTML = `
       <div style="padding:4px 0 8px;">
         <p style="font-weight:700;font-size:14px;margin:0 0 12px;color:var(--bgi-text);">Scan History</p>
+        <ion-searchbar id="guard-history-search" placeholder="Search pass ID or student" debounce="150" style="--background:var(--bgi-surface);--border-radius:12px;--box-shadow:none;padding:0;margin-bottom:12px;"></ion-searchbar>
         <div id="guard-history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
     `;
+    document.getElementById('guard-history-search')?.addEventListener('ionInput', (event) => {
+      this._renderGuardHistoryResults(document.getElementById('guard-history-list'), event.detail.value || '');
+    });
     this._loadGuardHistory(document.getElementById('guard-history-list'));
   },
 
@@ -584,12 +589,34 @@ Pages['guard-dashboard'] = {
     try {
       const res = await Api.get('/guard/scans/recent');
       const scans = res.data || [];
-      if (scans.length === 0) {
-        container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--bgi-text-secondary);font-size:13px;">No scans yet</div>`;
-        return;
-      }
+      this._guardHistoryScans = scans;
+      this._renderGuardHistoryResults(container, document.getElementById('guard-history-search')?.value || '');
+    } catch (e) {
+      container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--bgi-danger);font-size:13px;">${UI.escapeHtml(e.message)}</div>`;
+    }
+  },
 
-      container.innerHTML = scans.map((s) => {
+  _renderGuardHistoryResults(container, searchTerm = '') {
+    if (!container) return;
+    const normalizedSearch = searchTerm.toString().trim().toLowerCase();
+    const scans = this._guardHistoryScans.filter((scan) => {
+      if (!normalizedSearch) return true;
+      const searchableText = [
+        scan.details?.passId,
+        scan.details?.studentName,
+        scan.details?.approvedByName,
+        scan.action,
+        scan.createdAt,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return searchableText.includes(normalizedSearch);
+    });
+
+    if (scans.length === 0) {
+      container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--bgi-text-secondary);font-size:13px;">${normalizedSearch ? 'No matching scans found' : 'No scans yet'}</div>`;
+      return;
+    }
+
+    container.innerHTML = scans.map((s) => {
         const label = s.action === 'GATE_SCAN' ? 'Success' : 'Failed';
         const color = s.action === 'GATE_SCAN' ? 'var(--bgi-success)' : 'var(--bgi-danger)';
         return `
@@ -613,8 +640,5 @@ Pages['guard-dashboard'] = {
           </ion-card>
         `;
       }).join('');
-    } catch (e) {
-      container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--bgi-danger);font-size:13px;">${UI.escapeHtml(e.message)}</div>`;
-    }
   },
 };

@@ -627,6 +627,16 @@ const getPendingDirectorLeaveRequests = asyncHandler(async (req, res) => {
   res.json({ success: true, data: requests.map((leave) => ({ ...leave.toJSON(), student: leave.student })) });
 });
 
+// GET /api/v1/admin/leaves/faculty-history — all faculty leave requests for the director's campus
+const getFacultyLeaveHistory = asyncHandler(async (req, res) => {
+  const facultyIds = await User.find({ role: 'FACULTY', campus: req.user.campus }).distinct('_id');
+  const requests = await LeaveRequest.find({ requesterRole: 'FACULTY', student: { $in: facultyIds } })
+    .sort({ appliedOn: -1 })
+    .populate('student', 'name email employeeId department designation phone campus');
+
+  res.json({ success: true, data: requests.map((leave) => ({ ...leave.toJSON(), student: leave.student })) });
+});
+
 // PUT /api/v1/admin/leaves/:id/approve — approve faculty leave after HOD approval
 const approveDirectorLeave = asyncHandler(async (req, res) => {
   const { remark } = req.body;
@@ -800,6 +810,7 @@ module.exports = {
   approveDirector,
   rejectDirector,
   getPendingDirectorLeaveRequests,
+  getFacultyLeaveHistory,
   approveDirectorLeave,
   rejectDirectorLeave,
   getPendingFaculty,

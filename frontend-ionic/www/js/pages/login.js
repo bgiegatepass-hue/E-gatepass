@@ -121,7 +121,7 @@ Pages['login'] = {
             </ion-item>
 
             <div style="text-align:right;margin:0 0 12px;">
-              <ion-text color="primary" style="font-size:12px;cursor:pointer;" id="hod-forgot-password-link">Forgot Password? Contact Admin</ion-text>
+              <ion-text color="primary" style="font-size:12px;cursor:pointer;" id="hod-forgot-password-link">Forgot Password?</ion-text>
             </div>
 
             <ion-button expand="block" id="hod-password-login-btn-submit" color="primary" style="--border-radius:12px;--padding-top:14px;--padding-bottom:14px;">

@@ -212,19 +212,12 @@ Pages['faculty-dashboard'] = {
       const requests = historyRes.data || [];
       const counts = { total: requests.length, approved: 0, pending: 0, rejected: 0 };
       requests.forEach((r) => {
-        if (r.overall_status === 'Approved') counts.approved++;
-        else if (r.overall_status === 'Rejected') counts.rejected++;
+        const status = (r.overall_status || r.overallStatus || '').toString().trim();
+        if (status === 'Approved') counts.approved++;
+        else if (status === 'Rejected') counts.rejected++;
         else counts.pending++;
       });
-      let approvedPassData = null;
       const approvedLeave = requests.find((r) => (r.overall_status || r.overallStatus) === 'Approved');
-      if (approvedLeave) {
-        try {
-          const epassRes = await Api.get(`/epass/${approvedLeave.id || approvedLeave._id}`);
-          approvedPassData = epassRes.data || null;
-        } catch (_) {}
-      }
-
       body.innerHTML = `
         <!-- Location Bar -->
         <div id="user-location-display" style="background:var(--bgi-surface);border-radius:14px;border:1px solid var(--bgi-border);padding:8px 14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
@@ -276,16 +269,16 @@ Pages['faculty-dashboard'] = {
         </div>
 
         <!-- Action Grid -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
           <div id="tile-apply-leave" style="background:var(--bgi-surface);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;border:1px solid var(--bgi-border);transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="width:40px;height:40px;border-radius:12px;background:rgba(99,102,241,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;">
               <ion-icon name="create-outline" style="font-size:20px;color:var(--bgi-primary);"></ion-icon>
             </div>
             <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">Apply Leave</div>
           </div>
-          ${approvedPassData ? `<div id="tile-my-epass" style="background:linear-gradient(135deg, rgba(10,77,173,0.04), rgba(34,197,94,0.04));border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;border:1px solid rgba(10,77,173,0.08);transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          ${approvedLeave ? `<div id="tile-my-epass" style="background:linear-gradient(135deg, rgba(10,77,173,0.04), rgba(34,197,94,0.04));border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;border:1px solid rgba(10,77,173,0.08);transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="width:40px;height:40px;border-radius:12px;background:rgba(10,77,173,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;">
-              <ion-icon name="qr-code" style="font-size:20px;color:var(--bgi-primary);"></ion-icon>
+              <ion-icon name="qr-code-outline" style="font-size:20px;color:var(--bgi-primary);"></ion-icon>
             </div>
             <div style="font-size:10px;font-weight:600;color:var(--bgi-text);">My E-Pass</div>
           </div>` : ''}
@@ -326,7 +319,7 @@ Pages['faculty-dashboard'] = {
           </div>
         </div>
 
-        ${approvedPassData ? `
+        ${approvedLeave ? `
           <div id="qr-option-card" style="background:linear-gradient(135deg, rgba(10,77,173,0.04), rgba(34,197,94,0.04));border-radius:16px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(10,77,173,0.12);">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
               <div style="display:flex;align-items:center;gap:12px;min-width:0;">
@@ -334,8 +327,8 @@ Pages['faculty-dashboard'] = {
                   <ion-icon name="qr-code-outline" style="font-size:20px;color:var(--bgi-primary);"></ion-icon>
                 </div>
                 <div style="min-width:0;">
-                  <div style="font-size:13px;font-weight:700;color:var(--bgi-text);">View your QR Pass</div>
-                  <div style="font-size:11px;color:var(--bgi-text-secondary);">Tap to open the approved pass QR</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--bgi-text);">Open your QR Pass</div>
+                  <div style="font-size:11px;color:var(--bgi-text-secondary);">Open the approved pass QR</div>
                 </div>
               </div>
               <ion-button fill="outline" size="small" id="qr-option-btn" style="--border-radius:999px;height:32px;font-size:11px;">Open QR</ion-button>
@@ -343,40 +336,11 @@ Pages['faculty-dashboard'] = {
           </div>
         ` : ''}
 
-        ${this._renderApprovedPassCard(approvedPassData || null)}
       `;
 
       // Event Listeners
       document.getElementById('refresh-location-btn')?.addEventListener('click', () => this._getUserLocation());
       document.getElementById('retry-location-btn')?.addEventListener('click', () => this._getUserLocation());
-      if (approvedPassData) {
-        try {
-          const qrContainer = document.getElementById('faculty-epass-qr');
-          if (qrContainer && typeof QRCode !== 'undefined') {
-            new QRCode(qrContainer, {
-              text: approvedPassData.pass_id || approvedPassData.passId || '',
-              width: 140,
-              height: 140,
-              colorDark: '#0A4DAD',
-              colorLight: '#ffffff',
-            });
-          }
-        } catch (_) {}
-      }
-      document.getElementById('view-approved-pass-btn')?.addEventListener('click', () => {
-        const approvedLeave = (requests || []).find((item) => (item.overall_status || item.overallStatus) === 'Approved');
-        if (approvedLeave) Router.navigate('epass', { leaveRequestId: approvedLeave.id || approvedLeave._id });
-      });
-      document.getElementById('qr-option-btn')?.addEventListener('click', () => {
-        if (approvedPassData && approvedPassData.leave_request && approvedPassData.leave_request.id) {
-          Router.navigate('epass', { leaveRequestId: approvedPassData.leave_request.id });
-        }
-      });
-      document.getElementById('tile-my-epass')?.addEventListener('click', () => {
-        if (approvedPassData && approvedPassData.leave_request && approvedPassData.leave_request.id) {
-          Router.navigate('epass', { leaveRequestId: approvedPassData.leave_request.id });
-        }
-      });
       const applyLeaveTile = document.getElementById('tile-apply-leave');
       if (applyLeaveTile) {
         if (applyLeaveTile.dataset.leaveHandlerBound !== 'true') {
@@ -407,48 +371,16 @@ Pages['faculty-dashboard'] = {
         applyLeaveTile.style.touchAction = 'manipulation';
         applyLeaveTile.style.cursor = 'pointer';
       }
+      const openEpass = () => {
+        if (approvedLeave) Router.navigate('epass', { leaveRequestId: approvedLeave.id || approvedLeave._id });
+      };
+      document.getElementById('qr-option-btn')?.addEventListener('click', openEpass);
+      document.getElementById('tile-my-epass')?.addEventListener('click', openEpass);
       document.getElementById('tile-my-requests')?.addEventListener('click', () => this._switchTab('requests'));
       document.getElementById('tile-leave-history').addEventListener('click', () => this._switchTab('history'));
     } catch (e) {
       body.innerHTML = `<p class="empty-state">${UI.escapeHtml(e.message)}</p>`;
     }
-  },
-
-  _renderApprovedPassCard(approvedPassData) {
-    if (!approvedPassData) return '';
-
-    const passId = approvedPassData.pass_id || approvedPassData.passId || '';
-    const hodApprovedBy = approvedPassData.hod_approved_by_name || approvedPassData.hodApprovedByName || '';
-    const directorApprovedBy = approvedPassData.director_approved_by_name || approvedPassData.directorApprovedByName || '';
-    const approvedBy = approvedPassData.approved_by_name || approvedPassData.approvedByName || '';
-    const approvedAt = approvedPassData.approved_at || approvedPassData.approvedAt || '';
-    const qrUrl = approvedPassData.qr_code_url || approvedPassData.qrCodeUrl || '';
-    const locationText = approvedPassData.location_address || '';
-    const purpose = approvedPassData.leave_request?.purpose || approvedPassData.purpose || '';
-
-    return `
-      <div style="background:linear-gradient(135deg, rgba(10,77,173,0.08), rgba(34,197,94,0.08));border:1px solid rgba(10,77,173,0.16);border-radius:16px;padding:14px 14px 12px;margin-bottom:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-          <div>
-            <div style="font-size:12px;font-weight:700;color:var(--bgi-primary);text-transform:uppercase;letter-spacing:0.5px;">Approved E-Pass</div>
-            <div style="font-size:13px;font-weight:700;color:var(--bgi-text);margin-top:2px;">Your leave is approved</div>
-          </div>
-          <ion-button fill="outline" size="small" id="view-approved-pass-btn" style="--border-radius:999px;height:32px;font-size:11px;">View Pass</ion-button>
-        </div>
-        <div style="display:grid;gap:8px;font-size:11px;color:var(--bgi-text-secondary);">
-          <div style="display:flex;justify-content:center;margin:4px 0 6px;">
-            <div id="faculty-epass-qr" style="display:flex;justify-content:center;align-items:center;width:150px;height:150px;padding:8px;border-radius:14px;background:#fff;border:1px solid rgba(10,77,173,0.15);"></div>
-          </div>
-          ${passId ? `<div><b style="color:var(--bgi-text);">Pass ID:</b> ${UI.escapeHtml(passId)}</div>` : ''}
-          ${hodApprovedBy ? `<div><b style="color:var(--bgi-text);">HOD:</b> ${UI.escapeHtml(hodApprovedBy)}</div>` : ''}
-          ${directorApprovedBy ? `<div><b style="color:var(--bgi-text);">Director:</b> ${UI.escapeHtml(directorApprovedBy)}</div>` : ''}
-          ${!hodApprovedBy && !directorApprovedBy && approvedBy ? `<div><b style="color:var(--bgi-text);">Approved by:</b> ${UI.escapeHtml(approvedBy)}</div>` : ''}
-          ${approvedAt ? `<div><b style="color:var(--bgi-text);">Approved on:</b> ${UI.escapeHtml(new Date(approvedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</div>` : ''}
-          ${purpose ? `<div><b style="color:var(--bgi-text);">Purpose:</b> ${UI.escapeHtml(purpose)}</div>` : ''}
-          ${locationText ? `<div><b style="color:var(--bgi-text);">Location:</b> ${UI.escapeHtml(locationText)}</div>` : ''}
-        </div>
-      </div>
-    `;
   },
 
   // ===================================================================
@@ -536,7 +468,6 @@ Pages['faculty-dashboard'] = {
                   <div id="from-date-picker-wrap" style="display:none;margin-top:8px;">
                     <ion-datetime id="from-date" presentation="date" mode="md" show-default-buttons="false" size="cover" max-width="100%" style="width:100%;max-width:220px;margin:0 auto;display:block;--background:var(--bgi-surface);--ion-color-base:var(--bgi-text);--padding-top:0;--padding-bottom:0;--height:170px;border-radius:10px;--border-radius:10px;--box-shadow:none;"></ion-datetime>
                   </div>
-                  <div id="from-date-display" style="font-size:11px;font-weight:600;color:var(--bgi-text);padding:6px 4px 0;min-height:18px;"></div>
                 </div>
                 <div style="min-width:0;">
                   <div style="font-size:10px;font-weight:600;color:var(--bgi-text-secondary);margin-bottom:4px;">To</div>
@@ -544,7 +475,6 @@ Pages['faculty-dashboard'] = {
                   <div id="to-date-picker-wrap" style="display:none;margin-top:8px;">
                     <ion-datetime id="to-date" presentation="date" mode="md" show-default-buttons="false" size="cover" max-width="100%" style="width:100%;max-width:220px;margin:0 auto;display:block;--background:var(--bgi-surface);--ion-color-base:var(--bgi-text);--padding-top:0;--padding-bottom:0;--height:170px;border-radius:10px;--border-radius:10px;--box-shadow:none;"></ion-datetime>
                   </div>
-                  <div id="to-date-display" style="font-size:11px;font-weight:600;color:var(--bgi-text);padding:6px 4px 0;min-height:18px;"></div>
                 </div>
               </div>
             </div>
@@ -605,38 +535,24 @@ Pages['faculty-dashboard'] = {
     const toPickerWrap = modal.querySelector('#to-date-picker-wrap');
     const fromDatePicker = modal.querySelector('#from-date');
     const toDatePicker = modal.querySelector('#to-date');
-
-    function closeAllDatePickers() {
-      if (fromPickerWrap) fromPickerWrap.style.display = 'none';
+    fromInput?.addEventListener('click', () => {
+      if (fromPickerWrap) fromPickerWrap.style.display = 'block';
       if (toPickerWrap) toPickerWrap.style.display = 'none';
-    }
-
-    function openDatePicker(targetWrap) {
-      if (!targetWrap) return;
-      closeAllDatePickers();
-      targetWrap.style.display = 'block';
-    }
-
-    fromInput?.addEventListener('click', () => openDatePicker(fromPickerWrap));
-    toInput?.addEventListener('click', () => openDatePicker(toPickerWrap));
+    });
+    toInput?.addEventListener('click', () => {
+      if (toPickerWrap) toPickerWrap.style.display = 'block';
+      if (fromPickerWrap) fromPickerWrap.style.display = 'none';
+    });
 
     // Set Defaults
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     if (fromDatePicker) {
       fromDatePicker.value = todayStr;
-      const display = modal.querySelector('#from-date-display');
-      if (display) {
-        display.textContent = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      }
       if (fromInput) fromInput.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     }
     if (toDatePicker) {
       toDatePicker.value = todayStr;
-      const display = modal.querySelector('#to-date-display');
-      if (display) {
-        display.textContent = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      }
       if (toInput) toInput.value = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
@@ -645,26 +561,18 @@ Pages['faculty-dashboard'] = {
       const val = e.detail.value;
       if (val) {
         const d = new Date(val);
-        const display = modal.querySelector('#from-date-display');
-        if (display) {
-          display.textContent = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
         if (fromInput) fromInput.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
-      closeAllDatePickers();
+      if (fromPickerWrap) fromPickerWrap.style.display = 'none';
     });
 
     toDatePicker?.addEventListener('ionChange', (e) => {
       const val = e.detail.value;
       if (val) {
         const d = new Date(val);
-        const display = modal.querySelector('#to-date-display');
-        if (display) {
-          display.textContent = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
         if (toInput) toInput.value = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       }
-      closeAllDatePickers();
+      if (toPickerWrap) toPickerWrap.style.display = 'none';
     });
 
     // Medical upload
@@ -735,9 +643,9 @@ Pages['faculty-dashboard'] = {
         errorEl.textContent = '⚠️ Please select leave dates'; 
         return; 
       }
-      if (new Date(fromDateVal) > new Date(toDateVal)) { 
-        errorEl.style.display = 'block'; 
-        errorEl.textContent = '⚠️ Start date cannot be later than end date'; 
+      if (new Date(fromDateVal) > new Date(toDateVal)) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = '⚠️ From date cannot be after To date';
         return; 
       }
 

@@ -99,13 +99,21 @@ Pages['director-dashboard'] = {
     const body = document.getElementById('admin-dash-body');
     body.innerHTML = this._spinner();
     try {
-      const [userRes, statsRes] = await Promise.all([
+      const [userRes, statsRes, hodPendingRes, facultyPendingRes, guardPendingRes] = await Promise.all([
         Api.get('/auth/me'),
         Api.get('/admin/stats'),
+        Api.get('/admin/hod/pending'),
+        Api.get('/admin/faculty/pending'),
+        Api.get('/admin/guards/pending'),
       ]);
       const user = userRes.data || userRes;
       this._currentRole = user.role || 'DIRECTOR';
       const stats = statsRes.data || {};
+      const pendingCounts = {
+        hod: (hodPendingRes.data || []).length,
+        faculty: (facultyPendingRes.data || []).length,
+        guard: (guardPendingRes.data || []).length,
+      };
       
       document.getElementById('admin-dash-title').textContent = 'Director Dashboard';
 
@@ -129,13 +137,24 @@ Pages['director-dashboard'] = {
 
         <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px;">
           ${this._quickTile('document-text-outline', 'Faculty Leave Requests', 'tile-faculty-leaves', 'var(--bgi-primary)')}
+          ${this._quickTile('time-outline', 'Faculty Leave History', 'tile-faculty-history', '#0ea5e9')}
+        </div>
+
+        <div style="margin-top:8px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--bgi-text-secondary);">Pending Member Signups</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+          ${this._pendingSignupTile('ribbon-outline', 'HOD', pendingCounts.hod, 'tile-pending-hod', '#f59e0b')}
+          ${this._pendingSignupTile('school-outline', 'Faculty', pendingCounts.faculty, 'tile-pending-faculty', '#6366f1')}
+          ${this._pendingSignupTile('shield-outline', 'Guard', pendingCounts.guard, 'tile-pending-guard', '#10b981')}
         </div>
       `;
 
-      document.getElementById('tile-add-member')?.addEventListener('click', () => this._goToAddMember());
       document.getElementById('tile-qr-scan')?.addEventListener('click', () => this._openQRScanner());
       document.getElementById('tile-visitors')?.addEventListener('click', () => this._loadVisitors());
       document.getElementById('tile-faculty-leaves')?.addEventListener('click', () => this._showPendingDirectorLeaveApprovals());
+      document.getElementById('tile-faculty-history')?.addEventListener('click', () => this._showFacultyLeaveHistory());
+      document.getElementById('tile-pending-hod')?.addEventListener('click', () => this._showPendingHodApprovals());
+      document.getElementById('tile-pending-faculty')?.addEventListener('click', () => this._showPendingFacultyApprovals());
+      document.getElementById('tile-pending-guard')?.addEventListener('click', () => this._showPendingGuardApprovals());
     } catch (e) {
       body.innerHTML = `<p class="empty-state" style="font-size:12px;">${UI.escapeHtml(e.message)}</p>`;
     }
@@ -155,6 +174,15 @@ Pages['director-dashboard'] = {
       <ion-card id="${id}" style="margin:0;padding:10px;text-align:center;cursor:pointer;">
         <ion-icon name="${icon}" style="font-size:22px;color:${color};margin-bottom:4px;display:block;"></ion-icon>
         <div style="font-size:10px;font-weight:600;">${label}</div>
+      </ion-card>`;
+  },
+
+  _pendingSignupTile(icon, label, count, id, color) {
+    return `
+      <ion-card id="${id}" style="margin:0;padding:10px 6px;text-align:center;cursor:pointer;">
+        <ion-icon name="${icon}" style="font-size:20px;color:${color};margin-bottom:3px;display:block;"></ion-icon>
+        <div style="font-size:18px;font-weight:800;color:${color};">${count}</div>
+        <div style="font-size:10px;color:var(--bgi-text-secondary);">${label}</div>
       </ion-card>`;
   },
 
@@ -217,6 +245,7 @@ Pages['director-dashboard'] = {
     const from = UI.formatDate(leave.fromDate || leave.from_date);
     const to = UI.formatDate(leave.toDate || leave.to_date);
     const id = leave.id || leave._id || '';
+    const attachmentUrl = leave.attachmentUrl || leave.attachment_url || '';
     const locationText = leave.location?.address || (leave.location?.lat != null && leave.location?.lng != null
       ? `${leave.location.lat.toFixed(4)}, ${leave.location.lng.toFixed(4)}`
       : '');
@@ -233,11 +262,65 @@ Pages['director-dashboard'] = {
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Dept:</b> ${dept} &bull; <b>Designation:</b> ${designation}</div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Dates:</b> ${from} - ${to}</div>
           <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Reason:</b> ${reason}</div>
+          ${attachmentUrl ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--bgi-border);" /><a href="${UI.escapeHtml(attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--bgi-primary);">View Attachment</a></div>` : ''}
           ${locationText ? `<div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Location:</b> ${UI.escapeHtml(locationText)}</div>` : ''}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
             <ion-button expand="block" size="small" color="success" class="dir-leave-approve-btn" data-id="${id}" style="font-size:12px;">Approve</ion-button>
             <ion-button expand="block" size="small" color="danger" class="dir-leave-reject-btn" data-id="${id}" style="font-size:12px;">Reject</ion-button>
           </div>
+        </div>
+      </ion-card>`;
+  },
+
+  async _showFacultyLeaveHistory() {
+    const modal = document.createElement('ion-modal');
+    modal.cssText = '--height:90%;--width:min(760px, 92vw);--border-radius:18px;';
+    modal.innerHTML = `
+      <ion-header><ion-toolbar>
+        <ion-title style="font-size:15px;">Faculty Leave History</ion-title>
+        <ion-buttons slot="end"><ion-button id="faculty-history-close" style="font-size:13px;">Close</ion-button></ion-buttons>
+      </ion-toolbar></ion-header>
+      <ion-content class="ion-padding"><div id="faculty-history-list">${this._spinner()}</div></ion-content>
+    `;
+    document.body.appendChild(modal);
+    await modal.present();
+    modal.querySelector('#faculty-history-close')?.addEventListener('click', () => modal.dismiss());
+
+    const list = modal.querySelector('#faculty-history-list');
+    try {
+      const res = await Api.get('/admin/leaves/faculty-history');
+      const requests = res.data || [];
+      if (!requests.length) {
+        list.innerHTML = '<p class="empty-state" style="font-size:12px;">No faculty leave history</p>';
+        return;
+      }
+      list.innerHTML = requests.map((leave) => this._facultyLeaveHistoryCardHtml(leave)).join('');
+    } catch (e) {
+      list.innerHTML = `<p class="empty-state" style="font-size:12px;">${UI.escapeHtml(e.message)}</p>`;
+    }
+  },
+
+  _facultyLeaveHistoryCardHtml(leave) {
+    const name = leave.student?.name || leave.studentName || '-';
+    const employeeId = leave.student?.employeeId || leave.enrollmentNumber || '-';
+    const department = leave.student?.department || leave.department || '-';
+    const status = leave.overallStatus || leave.overall_status || 'Pending';
+    const statusClass = status === 'Approved' ? 'status-approved' : status === 'Rejected' ? 'status-rejected' : 'status-pending';
+    const attachmentUrl = leave.attachmentUrl || leave.attachment_url || '';
+    return `
+      <ion-card style="margin:0 0 8px;border-left:3px solid var(--bgi-primary);">
+        <div style="padding:10px 12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <div style="font-weight:700;font-size:13px;">${UI.escapeHtml(String(name))}</div>
+              <div style="font-size:11px;color:var(--bgi-text-secondary);">Employee ID: ${UI.escapeHtml(String(employeeId))} &bull; ${UI.escapeHtml(String(department))}</div>
+            </div>
+            <span class="status-badge ${statusClass}" style="font-size:9px;padding:2px 6px;">${UI.escapeHtml(status)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:6px;"><b>Dates:</b> ${UI.formatDate(leave.fromDate || leave.from_date)} - ${UI.formatDate(leave.toDate || leave.to_date)}</div>
+          <div style="font-size:11px;color:var(--bgi-text-secondary);"><b>Purpose:</b> ${UI.escapeHtml(String(leave.reason || leave.purpose || '-'))}</div>
+          ${attachmentUrl ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;"><img src="${UI.escapeHtml(attachmentUrl)}" alt="Medical attachment" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--bgi-border);" /><a href="${UI.escapeHtml(attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--bgi-primary);">View Attachment</a></div>` : ''}
+          <div style="font-size:10px;color:var(--bgi-text-secondary);margin-top:6px;">Applied: ${UI.formatDate(leave.appliedOn || leave.applied_on)}</div>
         </div>
       </ion-card>`;
   },
@@ -309,17 +392,12 @@ Pages['director-dashboard'] = {
 
   async _loadMemberList(role) {
     this._memberRole = role;
-    this._collegeFilter = '';
     const body = document.getElementById('admin-dash-body');
     const roleLabels = { STUDENT: 'Students', FACULTY: 'Faculty', HOD: 'HODs', GUARD: 'Guards' };
     body.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <ion-button fill="clear" size="small" id="back-to-members-btn"><ion-icon name="arrow-back-outline" slot="icon-only" style="font-size:18px;"></ion-icon></ion-button>
         <h2 style="margin:0;font-size:15px;font-weight:700;">${roleLabels[role]}</h2>
-        ${role !== 'HOD' ? `
-        <ion-button size="small" id="add-member-top-btn" style="margin-left:auto;font-size:12px;">
-          <ion-icon name="add" slot="start" style="font-size:14px;"></ion-icon>Add
-        </ion-button>` : ''}
       </div>
 
       ${role === 'HOD' || role === 'DIRECTOR' ? `
@@ -358,17 +436,6 @@ Pages['director-dashboard'] = {
         </div>
       </ion-card>` : ''}
 
-      <!-- College Filter (for all roles) -->
-      <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;margin-bottom:8px;--min-height:38px;">
-        <ion-icon name="business-outline" slot="start" color="medium" style="font-size:16px;"></ion-icon>
-        <ion-select id="college-filter-select" interface="action-sheet" placeholder="All Colleges" style="font-size:13px;">
-          <ion-select-option value="">All Colleges</ion-select-option>
-          <ion-select-option value="BIST">Bansal Institute of Science & Technology - BIST</ion-select-option>
-          <ion-select-option value="BIRT">Bansal Institute of Research & Technology - BIRT</ion-select-option>
-          <ion-select-option value="BIRTS">Bansal Institute of Research Technology & Science - BIRTS</ion-select-option>
-        </ion-select>
-      </ion-item>
-
       <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:10px;margin-bottom:8px;--min-height:38px;">
         <ion-icon name="search-outline" slot="start" color="medium" style="font-size:16px;"></ion-icon>
         <ion-input id="member-search-input" placeholder="Search name, email..." style="font-size:13px;"></ion-input>
@@ -384,27 +451,15 @@ Pages['director-dashboard'] = {
 
       <div id="members-list">${this._spinner()}</div>
 
-      ${role !== 'HOD' ? `
-      <ion-fab vertical="bottom" horizontal="end" slot="fixed" style="margin-bottom:10px;">
-        <ion-fab-button id="fab-add-member" style="width:48px;height:48px;"><ion-icon name="add" style="font-size:20px;"></ion-icon></ion-fab-button>
-      </ion-fab>` : ''}
     `;
 
     document.getElementById('back-to-members-btn').addEventListener('click', () => this._loadMembersTab());
-    document.getElementById('add-member-top-btn')?.addEventListener('click', () => this._goToAddMember(role));
-    document.getElementById('fab-add-member')?.addEventListener('click', () => this._goToAddMember(role));
     document.getElementById('hod-pending-banner')?.addEventListener('click', () => this._showPendingHodApprovals());
     document.getElementById('faculty-pending-banner')?.addEventListener('click', () => this._showPendingFacultyApprovals());
     document.getElementById('guard-pending-banner')?.addEventListener('click', () => this._showPendingGuardApprovals());
     if (role === 'HOD' || role === 'DIRECTOR') this._refreshHodPendingCount();
     if (role === 'FACULTY') this._refreshFacultyPendingCount();
     if (role === 'GUARD') this._refreshGuardPendingCount();
-
-    // College filter
-    const collegeSel = document.getElementById('college-filter-select');
-    if (collegeSel) {
-      collegeSel.addEventListener('ionChange', (e) => { this._collegeFilter = e.detail.value; this._renderMembersList(); });
-    }
 
     let debounce;
     document.getElementById('member-search-input').addEventListener('ionInput', (e) => {
@@ -770,7 +825,6 @@ Pages['director-dashboard'] = {
     try {
       const res = await Api.get(endpointByRole[this._memberRole], {
         department: this._departmentFilter || undefined,
-        campus: this._collegeFilter || undefined,
         search: this._searchTerm || undefined,
       });
       const members = res.data || [];
@@ -897,9 +951,8 @@ Pages['director-dashboard'] = {
           <ion-item><ion-label style="font-size:13px;">Added On</ion-label><ion-note slot="end" style="font-size:12px;">${UI.formatDate(member.createdAt)}</ion-note></ion-item>
         </ion-list>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+          <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px;">
             <ion-button expand="block" fill="outline" id="modal-toggle-btn" style="font-size:12px;height:42px;">${member.isActive ? 'Deactivate' : 'Activate'}</ion-button>
-            <ion-button expand="block" fill="outline" id="modal-reset-pwd-btn" style="font-size:12px;height:42px;">Reset Password</ion-button>
           </div>
 
           ${(role === 'FACULTY' || role === 'HOD') ? `
@@ -919,10 +972,6 @@ Pages['director-dashboard'] = {
     modal.querySelector('#member-modal-close').addEventListener('click', () => modal.dismiss());
     modal.querySelector('#modal-toggle-btn').addEventListener('click', async () => {
       try { await Api.put(`/admin/members/${id}/toggle-active`, {}); UI.toast('Status updated'); modal.dismiss(); this._renderMembersList(); }
-      catch (e) { UI.toast(e.message || 'Failed', 'danger'); }
-    });
-    modal.querySelector('#modal-reset-pwd-btn').addEventListener('click', async () => {
-      try { await Api.post(`/admin/members/${id}/reset-password`, {}); UI.toast('Password reset email sent'); }
       catch (e) { UI.toast(e.message || 'Failed', 'danger'); }
     });
     modal.querySelector('#modal-edit-btn')?.addEventListener('click', () => {

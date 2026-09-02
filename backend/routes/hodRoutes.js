@@ -18,6 +18,7 @@ const {
   rejectRequest,
   getStats,
   getReports,
+  getHodHistory,
 } = require('../controllers/hodController');
 const { getDepartmentLeaves, approveLeave, rejectLeave, getDashboardStats } = require('../controllers/hodAuthController');
 const {
@@ -51,6 +52,7 @@ router.get('/requests/:id', getRequestById);
 router.put('/requests/:id/approve', approveRequest);
 router.put('/requests/:id/reject', rejectRequest);
 router.get('/stats', getStats);
+router.get('/history', getHodHistory);
 router.get('/reports', getReports);
 
 // ---- HOD Department Leave Actions (from hodAuthController) ----

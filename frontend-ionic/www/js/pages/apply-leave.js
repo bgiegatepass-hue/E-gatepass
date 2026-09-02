@@ -38,6 +38,13 @@ Pages['apply-leave'] = {
           <ion-label id="to-date-label">Select date</ion-label>
         </ion-item>
 
+        <p style="font-weight:600;">Semester <span style="color:var(--bgi-danger);">*</span></p>
+        <ion-item lines="none" style="border:1px solid var(--bgi-border);border-radius:12px;margin-bottom:18px;">
+          <ion-select id="student-semester" interface="action-sheet" placeholder="Select semester">
+            ${[1, 2, 3, 4, 5, 6, 7, 8].map((s) => `<ion-select-option value="${s}">Semester ${s}</ion-select-option>`).join('')}
+          </ion-select>
+        </ion-item>
+
         <p style="font-weight:600;">Reason for Leave</p>
         <ion-textarea id="reason-input" rows="4" maxlength="${APP_CONFIG.maxReasonLength}" placeholder="Describe the reason for your leave..."
           style="border:1px solid var(--bgi-border);border-radius:12px;padding:10px;margin-bottom:18px;" counter="true"></ion-textarea>
@@ -117,17 +124,19 @@ Pages['apply-leave'] = {
 
   async _submit() {
     const leaveType = document.getElementById('leave-type').value;
+    const semester = document.getElementById('student-semester').value;
     const reason = document.getElementById('reason-input').value.trim();
     const emergencyContact = document.getElementById('emergency-contact').value.trim();
 
     if (!this._fromDate || !this._toDate) return UI.toast('Please select From and To dates', 'danger');
     if (new Date(this._fromDate) > new Date(this._toDate)) return UI.toast('From date cannot be after To date', 'danger');
+    if (!semester) return UI.toast('Please select your semester before applying leave', 'danger');
     if (!reason) return UI.toast('Reason is required', 'danger');
     if (!emergencyContact) return UI.toast('Emergency contact is required', 'danger');
 
     this._setLoading(true);
     try {
-      const fields = { leaveType, fromDate: this._fromDate, toDate: this._toDate, reason, emergencyContact };
+      const fields = { leaveType, fromDate: this._fromDate, toDate: this._toDate, semester, reason, emergencyContact };
       if (this._userLocation) {
         fields.latitude = this._userLocation.lat;
         fields.longitude = this._userLocation.lng;

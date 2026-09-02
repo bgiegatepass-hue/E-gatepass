@@ -27,13 +27,18 @@ const applyLeave = asyncHandler(async (req, res) => {
     locationAddress,
   } = req.body;
 
+  const requesterRole = req.user.role || 'STUDENT';
   const resolvedFromDate = fromDate || leaveDate || new Date().toISOString().slice(0, 10);
   const resolvedToDate = toDate || leaveDate || resolvedFromDate;
   const resolvedReason = reason || purpose || 'No reason provided';
   const resolvedEmergencyContact = emergencyContact || req.user.phone || '';
+  const resolvedSemester = semester || req.user.semester;
 
   if (!leaveType || !resolvedFromDate || !resolvedToDate || !resolvedReason) {
     return res.status(400).json({ success: false, message: 'Leave type, dates, and reason are required' });
+  }
+  if (requesterRole === 'STUDENT' && !resolvedSemester) {
+    return res.status(400).json({ success: false, message: 'Semester is required before applying leave' });
   }
   if (new Date(resolvedFromDate) > new Date(resolvedToDate)) {
     return res.status(400).json({ success: false, message: 'fromDate cannot be after toDate' });
@@ -77,7 +82,7 @@ const applyLeave = asyncHandler(async (req, res) => {
     studentName: studentName || req.user.name,
     enrollmentNumber: enrollmentNumber || req.user.rollNumber,
     branch: branch || req.user.branch,
-    semester: semester || req.user.semester,
+    semester: resolvedSemester,
     tgName,
     attachmentUrl,
     emergencyContact: resolvedEmergencyContact,

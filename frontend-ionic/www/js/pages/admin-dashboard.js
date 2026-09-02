@@ -42,6 +42,7 @@ Pages['admin-dashboard'] = {
       <ion-tab-bar id="admin-tabbar" style="--background:var(--bgi-surface);border-top:1px solid var(--bgi-border);">
         <ion-tab-button data-tab="home"><ion-icon name="grid-outline" style="font-size:20px;"></ion-icon><ion-label style="font-size:10px;">Home</ion-label></ion-tab-button>
         <ion-tab-button data-tab="members"><ion-icon name="people-outline" style="font-size:20px;"></ion-icon><ion-label style="font-size:10px;">Members</ion-label></ion-tab-button>
+        <ion-tab-button data-tab="history"><ion-icon name="time-outline" style="font-size:20px;"></ion-icon><ion-label style="font-size:10px;">History</ion-label></ion-tab-button>
         <ion-tab-button data-tab="settings"><ion-icon name="settings-outline" style="font-size:20px;"></ion-icon><ion-label style="font-size:10px;">Settings</ion-label></ion-tab-button>
       </ion-tab-bar>
     `;
@@ -70,11 +71,56 @@ Pages['admin-dashboard'] = {
   _switchTab(tab) {
     this._activeTab = tab;
     document.querySelectorAll('#admin-tabbar ion-tab-button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    const titles = { home: this._currentRole === 'DIRECTOR' ? 'Director Dashboard' : 'Dashboard', members: 'Members', settings: 'Settings' };
+    const titles = { home: this._currentRole === 'DIRECTOR' ? 'Director Dashboard' : 'Dashboard', members: 'Members', history: 'Admin History', settings: 'Settings' };
     document.getElementById('admin-dash-title').textContent = titles[tab] || 'Dashboard';
     if (tab === 'home') this._loadHome();
     else if (tab === 'members') this._loadMembersTab();
+    else if (tab === 'history') this._loadHistoryTab();
     else if (tab === 'settings') this._loadSettingsTab();
+  },
+
+  async _loadHistoryTab() {
+    const body = document.getElementById('admin-dash-body');
+    body.innerHTML = this._spinner();
+    try {
+      const userRes = await Api.get('/auth/me');
+      const user = userRes.data || userRes;
+      const userId = user.id || user._id;
+      const res = await Api.get('/admin/audit-logs', { userId, limit: 100 });
+      const logs = res.data || [];
+      body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-weight:700;font-size:15px;">My Admin Actions</div>
+          <ion-button fill="clear" size="small" id="admin-history-refresh" style="--padding-start:4px;--padding-end:4px;">
+            <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </div>
+        <div id="admin-history-list">
+          ${logs.length ? logs.map((log) => this._adminHistoryRow(log)).join('') : '<p class="empty-state" style="font-size:12px;">No admin actions recorded yet</p>'}
+        </div>
+      `;
+      document.getElementById('admin-history-refresh')?.addEventListener('click', () => this._loadHistoryTab());
+    } catch (e) {
+      body.innerHTML = `<p class="empty-state" style="font-size:12px;">${UI.escapeHtml(e.message || 'Failed to load history')}</p>`;
+    }
+  },
+
+  _adminHistoryRow(log) {
+    const action = (log.action || 'ACTION').replace(/_/g, ' ');
+    const details = log.details && typeof log.details === 'object'
+      ? Object.entries(log.details).filter(([, value]) => value !== undefined && value !== null && value !== '').map(([key, value]) => `${key}: ${value}`).join(' • ')
+      : '';
+    return `
+      <ion-card style="margin:0 0 8px;border-left:3px solid var(--bgi-primary);">
+        <div style="padding:10px 12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div style="font-weight:700;font-size:13px;text-transform:capitalize;">${UI.escapeHtml(action.toLowerCase())}</div>
+            <div style="font-size:10px;color:var(--bgi-text-secondary);white-space:nowrap;">${UI.escapeHtml(UI.formatDate(log.createdAt))}</div>
+          </div>
+          ${log.entityType ? `<div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:4px;">${UI.escapeHtml(log.entityType)}${log.entityId ? ` • ID: ${UI.escapeHtml(String(log.entityId))}` : ''}</div>` : ''}
+          ${details ? `<div style="font-size:11px;color:var(--bgi-text-secondary);margin-top:4px;line-height:1.4;">${UI.escapeHtml(details)}</div>` : ''}
+        </div>
+      </ion-card>`;
   },
 
   async _pollNotifications() {
@@ -193,7 +239,6 @@ Pages['admin-dashboard'] = {
 
       `;
 
-      document.getElementById('tile-add-member')?.addEventListener('click', () => this._goToAddMember());
       document.getElementById('tile-qr-scan')?.addEventListener('click', () => this._openQRScanner());
       document.getElementById('tile-visitors')?.addEventListener('click', () => this._loadVisitors());
       document.getElementById('tile-audit')?.addEventListener('click', () => this._showAuditLogs());
@@ -400,10 +445,6 @@ Pages['admin-dashboard'] = {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <ion-button fill="clear" size="small" id="back-to-members-btn"><ion-icon name="arrow-back-outline" slot="icon-only" style="font-size:18px;"></ion-icon></ion-button>
         <h2 style="margin:0;font-size:15px;font-weight:700;">${roleLabels[role]}</h2>
-        ${role !== 'HOD' ? `
-        <ion-button size="small" id="add-member-top-btn" style="margin-left:auto;font-size:12px;">
-          <ion-icon name="add" slot="start" style="font-size:14px;"></ion-icon>Add
-        </ion-button>` : ''}
       </div>
 
       ${role === 'HOD' ? `
@@ -480,15 +521,9 @@ Pages['admin-dashboard'] = {
 
       <div id="members-list">${this._spinner()}</div>
 
-      ${role !== 'HOD' ? `
-      <ion-fab vertical="bottom" horizontal="end" slot="fixed" style="margin-bottom:10px;">
-        <ion-fab-button id="fab-add-member" style="width:48px;height:48px;"><ion-icon name="add" style="font-size:20px;"></ion-icon></ion-fab-button>
-      </ion-fab>` : ''}
     `;
 
     document.getElementById('back-to-members-btn').addEventListener('click', () => this._loadMembersTab());
-    document.getElementById('add-member-top-btn')?.addEventListener('click', () => this._goToAddMember(role));
-    document.getElementById('fab-add-member')?.addEventListener('click', () => this._goToAddMember(role));
     document.getElementById('hod-pending-banner')?.addEventListener('click', () => this._showPendingHodApprovals());
     document.getElementById('director-pending-banner')?.addEventListener('click', () => this._showPendingDirectorApprovals());
     document.getElementById('faculty-pending-banner')?.addEventListener('click', () => this._showPendingFacultyApprovals());
@@ -1103,9 +1138,8 @@ Pages['admin-dashboard'] = {
           <ion-item><ion-label style="font-size:13px;">Added On</ion-label><ion-note slot="end" style="font-size:12px;">${UI.formatDate(member.createdAt)}</ion-note></ion-item>
         </ion-list>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+          <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px;">
             <ion-button expand="block" fill="outline" id="modal-toggle-btn" style="font-size:12px;height:42px;">${member.isActive ? 'Deactivate' : 'Activate'}</ion-button>
-            <ion-button expand="block" fill="outline" id="modal-reset-pwd-btn" style="font-size:12px;height:42px;">Reset Password</ion-button>
           </div>
 
           ${(role === 'FACULTY' || role === 'HOD') ? `
@@ -1125,10 +1159,6 @@ Pages['admin-dashboard'] = {
     modal.querySelector('#member-modal-close').addEventListener('click', () => modal.dismiss());
     modal.querySelector('#modal-toggle-btn').addEventListener('click', async () => {
       try { await Api.put(`/admin/members/${id}/toggle-active`, {}); UI.toast('Status updated'); modal.dismiss(); this._renderMembersList(); }
-      catch (e) { UI.toast(e.message || 'Failed', 'danger'); }
-    });
-    modal.querySelector('#modal-reset-pwd-btn').addEventListener('click', async () => {
-      try { await Api.post(`/admin/members/${id}/reset-password`, {}); UI.toast('Password reset email sent'); }
       catch (e) { UI.toast(e.message || 'Failed', 'danger'); }
     });
     modal.querySelector('#modal-edit-btn')?.addEventListener('click', () => {
@@ -1846,10 +1876,6 @@ Pages['admin-dashboard'] = {
             <ion-icon name="key-outline" slot="start" color="warning" style="font-size:18px;"></ion-icon>
             <ion-label style="font-size:13px;">Change Password</ion-label>
           </ion-item>
-          <ion-item button id="setting-backup" detail>
-            <ion-icon name="cloud-download-outline" slot="start" color="success" style="font-size:18px;"></ion-icon>
-            <ion-label style="font-size:13px;">Backup & Restore</ion-label>
-          </ion-item>
           <ion-item button id="setting-audit" detail>
             <ion-icon name="newspaper-outline" slot="start" color="tertiary" style="font-size:18px;"></ion-icon>
             <ion-label style="font-size:13px;">Audit Logs</ion-label>
@@ -1863,7 +1889,6 @@ Pages['admin-dashboard'] = {
       document.getElementById('setting-change-pwd').addEventListener('click', () => this._changePasswordModal());
       document.getElementById('setting-audit').addEventListener('click', () => this._showAuditLogs());
       document.getElementById('setting-college-info').addEventListener('click', () => this._collegeInfoModal());
-      document.getElementById('setting-backup').addEventListener('click', () => UI.toast('Backup feature coming soon', 'warning'));
     } catch (e) { body.innerHTML = `<p class="empty-state" style="font-size:12px;">${UI.escapeHtml(e.message)}</p>`; }
   },
 
