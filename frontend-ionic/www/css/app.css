@@ -76,22 +76,36 @@ ion-app, ion-content, body {
 .role-tab.active ion-icon, .role-tab.active span { color: #fff; }
 
 /* ---- Status badges ---- */
-.status-badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.status-badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .status-pending { background: var(--bgi-warning-bg); color: var(--bgi-warning); }
 .status-approved { background: var(--bgi-success-bg); color: var(--bgi-success); }
 .status-rejected { background: var(--bgi-danger-bg); color: var(--bgi-danger); }
 
 /* ---- Leave card ---- */
 .leave-card { padding: 12px; margin-bottom: 10px; }
-.leave-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.leave-card-dates { font-weight: 600; font-size: 13px; }
-.leave-card-student { font-weight: 600; margin: 3px 0; color: var(--bgi-text); font-size: 13px; }
+.leave-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.leave-card-dates { font-weight: 600; font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.leave-card-student { font-weight: 600; margin: 3px 0; color: var(--bgi-text); font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
 .leave-card-reason { color: var(--bgi-text-secondary); font-size: 12px; margin: 4px 0; }
 .leave-card-meta { color: var(--bgi-text-secondary); font-size: 11px; margin-bottom: 4px; }
-.leave-card-statuses { display: flex; gap: 14px; font-size: 11px; }
+.leave-card-statuses { display: flex; gap: 14px; font-size: 11px; flex-wrap: wrap; }
 .leave-card-statuses b { color: var(--bgi-text); }
 .leave-card-actions { display: flex; gap: 8px; margin-top: 10px; }
 .leave-card-actions ion-button { flex: 1; margin: 0; }
+
+@media (max-width: 480px) {
+  #hod-request-view-segment,
+  #hod-segment { overflow-x: auto; justify-content: flex-start; }
+  #hod-request-view-segment ion-segment-button,
+  #hod-segment ion-segment-button { flex: 0 0 auto; min-width: 82px; }
+  .leave-card { padding: 10px; }
+  .leave-card-header { gap: 5px; }
+  .leave-card-dates { font-size: 12px; flex: 1 1 150px; }
+  .leave-card-student { font-size: 13px; line-height: 1.35; }
+  .leave-card-statuses { gap: 6px 12px; }
+  .leave-card-actions { flex-wrap: wrap; }
+  .leave-card-actions ion-button { min-width: 130px; }
+}
 
 /* ---- Dashboard grid tiles ---- */
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }

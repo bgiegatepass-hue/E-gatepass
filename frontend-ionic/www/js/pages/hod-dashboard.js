@@ -943,11 +943,11 @@ Pages['hod-dashboard'] = {
     const body = document.getElementById('hod-dash-body');
     const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
     body.innerHTML = `
-      <ion-segment value="${this._requestsView}" id="hod-request-view-segment" style="margin-bottom:8px;">
+      <ion-segment value="${this._requestsView}" id="hod-request-view-segment" style="margin-bottom:8px;--background:var(--bgi-surface);">
         <ion-segment-button value="student"><ion-label>Student Leave</ion-label></ion-segment-button>
         <ion-segment-button value="faculty"><ion-label>Faculty Leave</ion-label></ion-segment-button>
       </ion-segment>
-      <ion-segment value="${this._requestsFilter}" id="hod-segment">
+      <ion-segment value="${this._requestsFilter}" id="hod-segment" style="--background:var(--bgi-surface);">
         ${statuses.map((s) => `<ion-segment-button value="${s}"><ion-label>${s}</ion-label></ion-segment-button>`).join('')}
       </ion-segment>
       <ion-item lines="none" style="--background:#fff;border:1px solid var(--bgi-border);border-radius:12px;margin:12px 0 8px;">
