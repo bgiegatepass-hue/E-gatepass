@@ -8,9 +8,10 @@
 function resolveBackendBaseUrl() {
   // Local development URL
   //return 'http://localhost:5000/api/v1';
+  // https://e-gatepass-1-pbej.onrender.com/
   
   //OLD CODE - PRODUCTION URL
-  return 'https://e-gatepass-1-pbej.onrender.com/api/v1';
+  return 'https://e-gatepass-1-pbej.onrender.com/';
   
 }
 

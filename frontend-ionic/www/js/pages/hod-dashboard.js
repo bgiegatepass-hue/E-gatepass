@@ -105,6 +105,9 @@ Pages['hod-dashboard'] = {
             <ion-button expand="block" size="small" color="light" id="hod-student-upload-btn" style="font-size:12px;">
               <ion-icon name="document-attach-outline" slot="start" style="font-size:14px;"></ion-icon>Browse File
             </ion-button>
+            <ion-button expand="block" size="small" fill="outline" color="light" id="hod-student-list-edit-btn" style="font-size:12px;margin-top:6px;">
+              <ion-icon name="create-outline" slot="start" style="font-size:14px;"></ion-icon>Open Saved List / Edit
+            </ion-button>
           </div>
           <input type="file" id="hod-student-upload-input" accept=".xlsx,.xls,.csv" style="display:none;" />
         </div>
@@ -166,6 +169,7 @@ Pages['hod-dashboard'] = {
         uploadBtn.addEventListener('click', () => uploadInput.click());
         uploadInput.addEventListener('change', (e) => this._handleStudentListUpload(e));
       }
+      document.getElementById('hod-student-list-edit-btn')?.addEventListener('click', () => this._showStudentListEditor());
     }
 
     document.getElementById('hod-member-search').addEventListener('ionInput', (e) => {
@@ -1182,9 +1186,188 @@ Pages['hod-dashboard'] = {
 
       // Reload members list
       await this._renderMembersList();
+      this._showStudentListEditor();
     } catch (error) {
       UI.toast(error.message || 'Upload failed', 'danger');
     }
+  },
+
+  async _showStudentListEditor() {
+    const user = await Auth.fetchProfile();
+    if (!user.department || !user.campus) return UI.toast('User department/campus info missing', 'danger');
+
+    let lists;
+    try {
+      const response = await Api.get('/hod/student-list', { department: user.department, campus: user.campus });
+      lists = response.data.lists || [response.data];
+    } catch (error) {
+      return UI.toast(error.message || 'Saved list not found', 'danger');
+    }
+    let list = lists[0];
+
+    const modal = document.createElement('ion-modal');
+    modal.cssText = '--height:92%;--width:min(760px,96vw);--border-radius:16px;';
+    modal.innerHTML = `
+      <ion-header><ion-toolbar>
+        <ion-title id="hod-list-editor-title" style="font-size:15px;">${UI.escapeHtml(list.versionLabel || 'New')} · ${UI.escapeHtml(list.fileName || 'Saved Student List')}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button id="hod-list-editor-save-top" color="primary"><ion-icon name="save-outline" slot="start"></ion-icon>Save</ion-button>
+          <ion-button id="hod-list-editor-close">Close</ion-button>
+        </ion-buttons>
+      </ion-toolbar></ion-header>
+      <ion-content class="ion-padding">
+        <ion-select id="hod-list-file-select" interface="action-sheet" value="${UI.escapeHtml(String(list.listId))}" label="Uploaded CSV files" label-placement="stacked" style="border:1px solid var(--bgi-border);border-radius:8px;margin-bottom:10px;">
+        </ion-select>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <ion-select id="hod-list-branch-filter" interface="action-sheet" value="" placeholder="All Branches" style="border:1px solid var(--bgi-border);border-radius:8px;min-height:38px;flex:1;">
+            <ion-select-option value="">All Branches</ion-select-option>
+          </ion-select>
+          <ion-button id="hod-list-download-csv" fill="outline" size="small" style="margin:0;white-space:nowrap;">
+            <ion-icon name="download-outline" slot="start"></ion-icon>CSV
+          </ion-button>
+          <ion-note id="hod-list-student-count" style="font-size:11px;white-space:nowrap;">${list.students.length} students</ion-note>
+        </div>
+        <ion-searchbar id="hod-list-name-search" placeholder="Search by student name" debounce="200" style="--box-shadow:none;border:1px solid var(--bgi-border);border-radius:8px;padding:0;margin-bottom:8px;"></ion-searchbar>
+        <ion-button id="hod-list-delete-csv" expand="block" fill="outline" color="danger" size="small" style="margin:0 0 10px;">
+          <ion-icon name="trash-outline" slot="start"></ion-icon>Delete CSV File
+        </ion-button>
+        <p style="font-size:11px;color:var(--bgi-text-secondary);margin:0 0 10px;">Edit details below and save. Verified students remain verified.</p>
+        <div id="hod-list-editor-rows"></div>
+        <ion-button expand="block" id="hod-list-editor-save" style="margin-top:14px;">
+          <ion-icon name="save-outline" slot="start"></ion-icon>Save Changes
+        </ion-button>
+      </ion-content>
+    `;
+    document.body.appendChild(modal);
+    await modal.present();
+
+    const branches = [...new Set((list.students || []).map((student) => student.branch).filter(Boolean))].sort();
+    const branchFilter = modal.querySelector('#hod-list-branch-filter');
+    const nameSearch = modal.querySelector('#hod-list-name-search');
+    const fileSelect = modal.querySelector('#hod-list-file-select');
+    const addBranchOptions = () => {
+      branchFilter.innerHTML = '<ion-select-option value="">All Branches</ion-select-option>';
+      [...new Set((list.students || []).map((student) => student.branch).filter(Boolean))].sort().forEach((branch) => {
+      const option = document.createElement('ion-select-option');
+      option.value = branch;
+      option.textContent = branch;
+      branchFilter.appendChild(option);
+      });
+    };
+    lists.forEach((item) => {
+      const option = document.createElement('ion-select-option');
+      option.value = item.listId;
+      option.textContent = `${item.versionLabel} · ${item.fileName || 'Student list'} · ${new Date(item.uploadedAt).toLocaleString()}`;
+      fileSelect.appendChild(option);
+    });
+
+    const renderRows = () => {
+      const selectedBranch = branchFilter.value || '';
+      const searchTerm = (nameSearch.value || '').trim().toLowerCase();
+      const filteredStudents = (list.students || []).filter((student) =>
+        (!selectedBranch || student.branch === selectedBranch) &&
+        (!searchTerm || String(student.name || '').toLowerCase().includes(searchTerm))
+      );
+      modal.querySelector('#hod-list-student-count').textContent = `${filteredStudents.length} students`;
+      modal.querySelector('#hod-list-editor-rows').innerHTML = (list.students || [])
+        .map((student, index) => ({ student, index }))
+        .filter(({ student }) =>
+          (!selectedBranch || student.branch === selectedBranch) &&
+          (!searchTerm || String(student.name || '').toLowerCase().includes(searchTerm))
+        )
+        .map(({ student, index }) => `
+          <div class="hod-list-row" data-index="${index}" style="border:1px solid var(--bgi-border);border-radius:10px;padding:8px;margin-bottom:8px;">
+            <div style="font-size:10px;color:var(--bgi-text-secondary);margin-bottom:4px;">${student.isVerified ? 'Verified' : 'Pending'} · ${UI.escapeHtml(student.branch || 'No branch')}</div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:6px;">
+              <ion-input class="list-name" label="Name" label-placement="stacked" fill="outline" value="${UI.escapeHtml(student.name)}"></ion-input>
+              <ion-input class="list-enrollment" label="Enrollment" label-placement="stacked" fill="outline" value="${UI.escapeHtml(student.enrollmentNumber)}"></ion-input>
+              <ion-input class="list-phone" label="Phone" label-placement="stacked" fill="outline" value="${UI.escapeHtml(student.phone)}"></ion-input>
+              <ion-input class="list-gmail" label="Gmail" label-placement="stacked" fill="outline" value="${UI.escapeHtml(student.gmail)}"></ion-input>
+              <ion-input class="list-branch" label="Branch" label-placement="stacked" fill="outline" value="${UI.escapeHtml(student.branch || '')}"></ion-input>
+              <ion-input class="list-semester" label="Semester" label-placement="stacked" fill="outline" type="number" value="${student.semester || ''}"></ion-input>
+            </div>
+          </div>
+        `).join('') || '<p class="empty-state">No students in this branch</p>';
+    };
+
+    addBranchOptions();
+    fileSelect.addEventListener('ionChange', (event) => {
+      list = lists.find((item) => String(item.listId) === String(event.detail.value)) || lists[0];
+      modal.querySelector('#hod-list-editor-title').textContent = `${list.versionLabel} · ${list.fileName || 'Saved Student List'}`;
+      nameSearch.value = '';
+      addBranchOptions();
+      renderRows();
+    });
+    branchFilter.addEventListener('ionChange', renderRows);
+    nameSearch.addEventListener('ionInput', renderRows);
+    renderRows();
+    modal.querySelector('#hod-list-editor-close').addEventListener('click', () => modal.dismiss());
+    modal.querySelector('#hod-list-download-csv').addEventListener('click', () => {
+      const selectedBranch = branchFilter.value || '';
+      const students = (list.students || []).filter((student) => !selectedBranch || student.branch === selectedBranch);
+      const headers = ['Name', 'Enrollment Number', 'Phone', 'Gmail', 'Branch', 'Semester', 'Verified'];
+      const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const csv = [headers, ...students.map((student) => [
+        student.name,
+        student.enrollmentNumber,
+        student.phone,
+        student.gmail,
+        student.branch,
+        student.semester,
+        student.isVerified ? 'Yes' : 'No',
+      ])].map((row) => row.map(csvCell).join(',')).join('\r\n');
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${user.department}_${selectedBranch || 'all-branches'}_student-list.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      UI.toast(`${students.length} students exported to CSV`, 'success');
+    });
+    modal.querySelector('#hod-list-editor-save').addEventListener('click', async () => {
+      const rows = modal.querySelectorAll('.hod-list-row');
+      rows.forEach((row) => {
+        const student = list.students[Number(row.dataset.index)];
+        student.name = row.querySelector('.list-name').value;
+        student.enrollmentNumber = row.querySelector('.list-enrollment').value;
+        student.phone = row.querySelector('.list-phone').value;
+        student.gmail = row.querySelector('.list-gmail').value;
+        student.branch = row.querySelector('.list-branch').value;
+        student.semester = row.querySelector('.list-semester').value;
+      });
+      try {
+        const response = await Api.put(`/hod/student-list/${list.listId}`, { students: list.students });
+        UI.toast(response.message || 'Student list updated', 'success');
+        await modal.dismiss();
+        await this._renderMembersList();
+      } catch (error) {
+        UI.toast(error.message || 'Could not save student list', 'danger');
+      }
+    });
+    modal.querySelector('#hod-list-editor-save-top').addEventListener('click', () => {
+      modal.querySelector('#hod-list-editor-save').click();
+    });
+    modal.querySelector('#hod-list-delete-csv').addEventListener('click', async () => {
+      const selectedBranch = branchFilter.value || '';
+      const searchTerm = (nameSearch.value || '').trim().toLowerCase();
+      const scope = selectedBranch ? ` for branch ${selectedBranch}` : '';
+      const { confirmed } = await UI.confirmWithRemark({
+        title: `Delete the complete CSV file${scope}?`,
+        message: 'This will remove the complete uploaded student list. It cannot be undone.',
+        confirmText: 'Delete File',
+        confirmColor: 'danger',
+      });
+      if (!confirmed) return;
+      try {
+        const response = await Api.delete(`/hod/student-list/${list.listId}`);
+        UI.toast(response.message || 'CSV file deleted', 'success');
+        await modal.dismiss();
+        await this._renderMembersList();
+      } catch (error) {
+        UI.toast(error.message || 'Could not delete CSV rows', 'danger');
+      }
+    });
   },
 
 
