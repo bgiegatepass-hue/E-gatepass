@@ -941,7 +941,7 @@ Pages['hod-dashboard'] = {
   async _loadRequests() {
     this._requestsSearch = this._requestsSearch || '';
     const body = document.getElementById('hod-dash-body');
-    const statuses = ['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'];
+    const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
     body.innerHTML = `
       <ion-segment value="${this._requestsView}" id="hod-request-view-segment" style="margin-bottom:8px;">
         <ion-segment-button value="student"><ion-label>Student Leave</ion-label></ion-segment-button>
