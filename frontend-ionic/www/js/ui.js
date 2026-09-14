@@ -152,6 +152,11 @@ const UI = {
           <ion-button fill="outline" color="danger" size="small" class="action-reject" data-id="${leaveId}">Reject</ion-button>
           <ion-button color="success" size="small" class="action-approve" data-id="${leaveId}">Approve</ion-button>
         </div>`;
+    } else if (showHodActions && hodStatus === 'Approved' && (leave.overall_status || leave.overallStatus) === 'Approved') {
+      actionsHtml = `
+        <div class="leave-card-actions">
+          <ion-button fill="outline" color="danger" size="small" class="action-cancel-approval" data-id="${leaveId}">Cancel Approval</ion-button>
+        </div>`;
     }
 
     const studentName = leave.studentName || leave.student_name || leave.student?.name || '';
@@ -228,8 +233,8 @@ const UI = {
     return cards.join('');
   },
 
-  /** Attaches delegated click handlers for approve/reject buttons + clickable cards inside a container. */
-  attachLeaveCardHandlers(container, { onApprove, onReject, onCardClick, onStudentProfile, onAttachmentView } = {}) {
+  /** Attaches delegated click handlers for leave actions + clickable cards inside a container. */
+  attachLeaveCardHandlers(container, { onApprove, onReject, onCancelApproval, onCardClick, onStudentProfile, onAttachmentView } = {}) {
     if (onApprove) {
       container.querySelectorAll('.action-approve').forEach((btn) => {
         btn.addEventListener('click', (e) => {
@@ -243,6 +248,14 @@ const UI = {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           onReject(btn.dataset.id);
+        });
+      });
+    }
+    if (onCancelApproval) {
+      container.querySelectorAll('.action-cancel-approval').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onCancelApproval(btn.dataset.id);
         });
       });
     }

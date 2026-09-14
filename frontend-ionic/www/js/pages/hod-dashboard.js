@@ -937,7 +937,7 @@ Pages['hod-dashboard'] = {
   async _loadRequests() {
     this._requestsSearch = this._requestsSearch || '';
     const body = document.getElementById('hod-dash-body');
-    const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
+    const statuses = ['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'];
     body.innerHTML = `
       <ion-segment value="${this._requestsView}" id="hod-request-view-segment" style="margin-bottom:8px;">
         <ion-segment-button value="student"><ion-label>Student Leave</ion-label></ion-segment-button>
@@ -996,6 +996,7 @@ Pages['hod-dashboard'] = {
       UI.attachLeaveCardHandlers(list, {
         onApprove: (id) => this._decide(id, true),
         onReject: (id) => this._decide(id, false),
+        onCancelApproval: (id) => this._cancelApproval(id),
         onStudentProfile: (studentId) => {
           if (studentId) this._showMemberDetail(studentId);
         },
@@ -1037,6 +1038,23 @@ Pages['hod-dashboard'] = {
       this._renderList();
     } catch (e) {
       await UI.toast(e.message || 'Action failed', 'danger');
+    }
+  },
+
+  async _cancelApproval(id) {
+    const { confirmed, remark } = await UI.confirmWithRemark({
+      title: 'Cancel Leave Approval?',
+      confirmText: 'Cancel Approval',
+      confirmColor: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await Api.put(`/hod/requests/${id}/cancel-approval`, { remark });
+      await UI.toast('Approval cancelled — E-Pass QR expired', 'success');
+      this._renderList();
+    } catch (e) {
+      await UI.toast(e.message || 'Cancellation failed', 'danger');
     }
   },
 
