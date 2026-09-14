@@ -11,7 +11,7 @@ function resolveBackendBaseUrl() {
   // https://e-gatepass-1-pbej.onrender.com/
   
   //OLD CODE - PRODUCTION URL
-  return 'https://e-gatepass-1-pbej.onrender.com/';
+  return 'https://e-gatepass-1-pbej.onrender.com/api/v1';
   
 }
 
