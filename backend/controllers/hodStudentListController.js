@@ -84,26 +84,22 @@ const uploadStudentList = asyncHandler(async (req, res) => {
     }
     console.log('🔵 [UPLOAD] Deduplicated students:', uniqueStudents.length, '/ ' + students.length);
 
-    // Replace previous list for this department + campus
+    // Keep every upload as a separate version for this department + campus.
     console.log('🔵 [UPLOAD] Saving to MongoDB...');
     console.log('   Query: hodId=' + req.user._id, 'department=' + department, 'campus=' + campus);
     console.log('   Data: ' + uniqueStudents.length + ' students, file=' + req.file.originalname);
     
-    const newList = await HODStudentList.findOneAndUpdate(
-      { hodId: req.user._id, department, campus },
-      {
-        hodId: req.user._id,
-        department,
-        campus,
-        students: uniqueStudents,
-        totalStudents: uniqueStudents.length,
-        verifiedCount: 0,
-        fileName: req.file.originalname,
-        uploadedAt: new Date(),
-        isActive: true,
-      },
-      { upsert: true, new: true }
-    );
+    const newList = await HODStudentList.create({
+      hodId: req.user._id,
+      department,
+      campus,
+      students: uniqueStudents,
+      totalStudents: uniqueStudents.length,
+      verifiedCount: 0,
+      fileName: req.file.originalname,
+      uploadedAt: new Date(),
+      isActive: true,
+    });
 
     console.log('✅ [UPLOAD] Saved successfully!');
     console.log('   Document ID:', newList?._id);
@@ -149,29 +145,88 @@ const getStudentList = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'department and campus query params required' });
   }
 
-  const list = await HODStudentList.findOne({
+  const lists = await HODStudentList.find({
     hodId: req.user._id,
     department,
     campus,
     isActive: true,
-  });
+  }).sort({ uploadedAt: -1, createdAt: -1 });
 
-  if (!list) {
+  if (!lists.length) {
     return res.status(404).json({ success: false, message: 'No student list found for this department/campus' });
   }
 
+  const list = lists[0];
+  const serializeList = (item, index) => ({
+    listId: item._id,
+    department: item.department,
+    campus: item.campus,
+    totalStudents: item.totalStudents,
+    verifiedCount: item.verifiedCount,
+    fileName: item.fileName,
+    uploadedAt: item.uploadedAt,
+    versionLabel: index === 0 ? 'New' : 'Old',
+    students: item.students,
+  });
+
   res.json({
     success: true,
-    data: {
-      listId: list._id,
-      department: list.department,
-      campus: list.campus,
-      totalStudents: list.totalStudents,
-      verifiedCount: list.verifiedCount,
-      fileName: list.fileName,
-      uploadedAt: list.uploadedAt,
-      students: list.students, // Returns full list with verification status
-    },
+    data: { ...serializeList(list, 0), lists: lists.map(serializeList) },
+  });
+});
+
+// PUT /api/v1/hod/student-list/:listId
+// Edit an existing list without uploading the source file again.
+const editStudentList = asyncHandler(async (req, res) => {
+  const { students } = req.body;
+  if (!Array.isArray(students) || students.length === 0) {
+    return res.status(400).json({ success: false, message: 'students must be a non-empty array' });
+  }
+
+  const list = await HODStudentList.findOne({ _id: req.params.listId, hodId: req.user._id, isActive: true });
+  if (!list) return res.status(404).json({ success: false, message: 'Student list not found' });
+
+  const previousByEnrollment = new Map(list.students.map((student) => [student.enrollmentNumber.toLowerCase(), student]));
+  const normalizedStudents = students.map((student) => ({
+    name: String(student.name || '').trim(),
+    enrollmentNumber: String(student.enrollmentNumber || '').trim().toLowerCase(),
+    phone: String(student.phone || '').trim(),
+    gmail: String(student.gmail || '').trim().toLowerCase(),
+    branch: String(student.branch || '').trim(),
+    semester: Number(student.semester) || null,
+  }));
+  const invalidStudents = normalizedStudents.filter((student) => !student.name || !student.enrollmentNumber || !student.phone || !student.gmail);
+  if (invalidStudents.length) {
+    return res.status(400).json({ success: false, message: 'Name, Enrollment, Phone, and Gmail are required for every row' });
+  }
+
+  const seen = new Set();
+  const uniqueStudents = normalizedStudents.filter((student) => {
+    if (seen.has(student.enrollmentNumber)) return false;
+    seen.add(student.enrollmentNumber);
+    const previous = previousByEnrollment.get(student.enrollmentNumber);
+    if (previous) {
+      student.isVerified = previous.isVerified;
+      student.verifiedAt = previous.verifiedAt;
+    }
+    return true;
+  });
+
+  list.students = uniqueStudents;
+  list.totalStudents = uniqueStudents.length;
+  list.verifiedCount = uniqueStudents.filter((student) => student.isVerified).length;
+  await list.save();
+  await recordAudit(req, {
+    action: 'STUDENT_LIST_EDITED',
+    entityType: 'HODStudentList',
+    entityId: list._id,
+    details: { department: list.department, campus: list.campus, totalStudents: list.totalStudents },
+  });
+
+  res.json({
+    success: true,
+    message: `Student list updated. Total: ${list.totalStudents}, Verified: ${list.verifiedCount}`,
+    data: { listId: list._id, totalStudents: list.totalStudents, verifiedCount: list.verifiedCount, students: list.students },
   });
 });
 
@@ -197,7 +252,7 @@ const verifyStudentExists = asyncHandler(async (req, res) => {
       isActive: true,
     },
     { students: 1 }
-  );
+  ).sort({ uploadedAt: -1, createdAt: -1 });
 
   if (!list) {
     return res.json({
@@ -311,7 +366,7 @@ const getMembersWithStudentList = asyncHandler(async (req, res) => {
   const studentList = await HODStudentList.findOne(
     { hodId: req.user._id, department, campus, isActive: true },
     { students: 1, totalStudents: 1, verifiedCount: 1, uploadedAt: 1, fileName: 1 }
-  );
+  ).sort({ uploadedAt: -1, createdAt: -1 });
 
   // Get registered members
   const query = { role: role.toUpperCase(), department, campus };
@@ -356,7 +411,7 @@ const getStudentListStats = asyncHandler(async (req, res) => {
 
   const list = await HODStudentList.findOne(
     { hodId: req.user._id, department, campus, isActive: true }
-  );
+  ).sort({ uploadedAt: -1, createdAt: -1 });
 
   if (!list) {
     return res.json({
@@ -399,6 +454,7 @@ const getStudentListStats = asyncHandler(async (req, res) => {
 module.exports = {
   uploadStudentList,
   getStudentList,
+  editStudentList,
   verifyStudentExists,
   markStudentVerified,
   deleteStudentList,

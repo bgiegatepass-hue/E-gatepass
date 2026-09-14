@@ -48,7 +48,7 @@ const sendOtp = asyncHandler(async (req, res) => {
       isActive: true,
     },
     { students: 1 }
-  );
+  ).sort({ uploadedAt: -1, createdAt: -1 });
 
   if (!studentList) {
     return res.status(403).json({

@@ -25,6 +25,7 @@ const { getDepartmentLeaves, approveLeave, rejectLeave, getDashboardStats } = re
 const {
   uploadStudentList,
   getStudentList,
+  editStudentList,
   verifyStudentExists,
   markStudentVerified,
   deleteStudentList,
@@ -66,6 +67,7 @@ router.get('/dashboard', getDashboardStats);
 // ---- HOD Student List Management (NEW) ----
 router.post('/student-list/upload', upload.single('studentList'), uploadStudentList);
 router.get('/student-list', getStudentList);
+router.put('/student-list/:listId', editStudentList);
 router.get('/student-list/verify-student', verifyStudentExists);
 router.get('/student-list/registration-stats', getStudentListStats);
 router.get('/members/with-list', getMembersWithStudentList);
