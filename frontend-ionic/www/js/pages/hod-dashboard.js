@@ -1302,7 +1302,7 @@ Pages['hod-dashboard'] = {
     nameSearch.addEventListener('ionInput', renderRows);
     renderRows();
     modal.querySelector('#hod-list-editor-close').addEventListener('click', () => modal.dismiss());
-    modal.querySelector('#hod-list-download-csv').addEventListener('click', () => {
+    modal.querySelector('#hod-list-download-csv').addEventListener('click', async () => {
       const selectedBranch = branchFilter.value || '';
       const students = (list.students || []).filter((student) => !selectedBranch || student.branch === selectedBranch);
       const headers = ['Name', 'Enrollment Number', 'Phone', 'Gmail', 'Branch', 'Semester', 'Verified'];
@@ -1316,14 +1316,43 @@ Pages['hod-dashboard'] = {
         student.semester,
         student.isVerified ? 'Yes' : 'No',
       ])].map((row) => row.map(csvCell).join(',')).join('\r\n');
-      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${user.department}_${selectedBranch || 'all-branches'}_student-list.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      UI.toast(`${students.length} students exported to CSV`, 'success');
+      const filename = `${user.department}_${selectedBranch || 'all-branches'}_student-list.csv`;
+      const csvWithBom = `\uFEFF${csv}`;
+      const capacitor = window.Capacitor;
+      const nativeFilesystem = capacitor?.Plugins?.Filesystem;
+      const nativeShare = capacitor?.Plugins?.Share;
+
+      try {
+        if (capacitor?.isNativePlatform?.() && nativeFilesystem) {
+          const bytes = new TextEncoder().encode(csvWithBom);
+          let binary = '';
+          bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+          const base64 = btoa(binary);
+          const saved = await nativeFilesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: 'DOCUMENTS',
+            recursive: true,
+          });
+          if (nativeShare && saved.uri) {
+            await nativeShare.share({ title: filename, text: 'Student list CSV', url: saved.uri, dialogTitle: 'Save or share CSV' });
+          }
+        } else {
+          const blob = new Blob([csvWithBom], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        UI.toast(`${students.length} students exported to CSV`, 'success');
+      } catch (error) {
+        UI.toast(error.message || 'CSV download failed', 'danger');
+      }
     });
     modal.querySelector('#hod-list-editor-save').addEventListener('click', async () => {
       const rows = modal.querySelectorAll('.hod-list-row');
