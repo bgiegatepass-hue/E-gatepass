@@ -16,6 +16,8 @@ const epassSchema = new mongoose.Schema({
   hodApprovedByName: { type: String, trim: true },
   directorApprovedByName: { type: String, trim: true },
   approvedAt: { type: Date },
+  revokedAt: { type: Date },
+  revocationReason: { type: String, trim: true },
   studentName: { type: String, trim: true },
   rollNumber: { type: String, trim: true },
   branch: { type: String, trim: true },

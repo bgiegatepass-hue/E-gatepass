@@ -16,6 +16,7 @@ const {
   rejectGuard,
   approveRequest,
   rejectRequest,
+  cancelApproval,
   getStats,
   getReports,
   getHodHistory,
@@ -51,6 +52,7 @@ router.get('/requests', getRequests);
 router.get('/requests/:id', getRequestById);
 router.put('/requests/:id/approve', approveRequest);
 router.put('/requests/:id/reject', rejectRequest);
+router.put('/requests/:id/cancel-approval', cancelApproval);
 router.get('/stats', getStats);
 router.get('/history', getHodHistory);
 router.get('/reports', getReports);

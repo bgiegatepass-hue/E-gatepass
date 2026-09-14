@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const LeaveRequest = require('../models/LeaveRequest');
 const User = require('../models/User');
+const Epass = require('../models/Epass');
 const { notifyUser } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
 const { issueEpass } = require('./epassController');
@@ -377,6 +378,44 @@ const rejectRequest = asyncHandler(async (req, res) => {
   res.json({ success: true, data: toHodJson(leave) });
 });
 
+// PUT /api/v1/hod/requests/:id/cancel-approval — revoke an approved leave and its E-Pass
+const cancelApproval = asyncHandler(async (req, res) => {
+  const { remark } = req.body;
+  const leave = await LeaveRequest.findById(req.params.id).populate('student', 'name rollNumber department campus');
+  if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
+  if (req.user.role === 'HOD' && leave.hod && String(leave.hod) !== String(req.user._id)) {
+    return res.status(403).json({ success: false, message: 'You are not authorized to cancel this approval' });
+  }
+  if (leave.overallStatus !== 'Approved' || leave.hodStatus !== 'Approved') {
+    return res.status(400).json({ success: false, message: 'Only an approved leave can be cancelled' });
+  }
+
+  const reason = remark || 'Approval cancelled by HOD';
+  const now = new Date();
+  leave.overallStatus = 'Cancelled';
+  leave.hodRemark = reason;
+  await leave.save();
+
+  const epass = await Epass.findOne({ leaveRequest: leave._id });
+  if (epass) {
+    epass.revokedAt = now;
+    epass.revocationReason = reason;
+    epass.validUntil = now;
+    await epass.save();
+  }
+
+  await recordAudit(req, { action: 'HOD_APPROVAL_CANCELLED', entityType: 'LeaveRequest', entityId: leave._id, details: { remark: reason } });
+  await notifyUser({
+    userId: leave.student._id,
+    leaveRequestId: leave._id,
+    title: 'Leave Approval Cancelled',
+    message: `Your leave approval has been cancelled by the HOD${remark ? `: ${remark}` : '.'} Your E-Pass QR code is no longer valid.`,
+    type: 'HOD_APPROVAL_CANCELLED',
+  });
+
+  res.json({ success: true, data: toHodJson(leave) });
+});
+
 // GET /api/v1/hod/stats
 const getStats = asyncHandler(async (req, res) => {
   const department = req.user.department;
@@ -554,6 +593,7 @@ module.exports = {
   rejectGuard,
   approveRequest,
   rejectRequest,
+  cancelApproval,
   getStats,
   getReports,
   getHodHistory,

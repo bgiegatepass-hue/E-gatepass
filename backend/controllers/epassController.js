@@ -126,6 +126,7 @@ const downloadEpass = asyncHandler(async (req, res) => {
 });
 
 function isWithinValidity(epass) {
+  if (epass.revokedAt) return false;
   const now = new Date();
   if (epass.validUntil) {
     return now <= new Date(epass.validUntil);

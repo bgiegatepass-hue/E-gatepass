@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema(
     message: { type: String, required: true },
     type: {
       type: String,
-      enum: ['LEAVE_SUBMITTED', 'FACULTY_APPROVED', 'FACULTY_REJECTED', 'HOD_APPROVED', 'HOD_REJECTED', 'DIRECTOR_APPROVED', 'DIRECTOR_REJECTED', 'GENERAL'],
+      enum: ['LEAVE_SUBMITTED', 'FACULTY_APPROVED', 'FACULTY_REJECTED', 'HOD_APPROVED', 'HOD_REJECTED', 'HOD_APPROVAL_CANCELLED', 'DIRECTOR_APPROVED', 'DIRECTOR_REJECTED', 'GENERAL'],
       default: 'GENERAL',
     },
     isRead: { type: Boolean, default: false },
