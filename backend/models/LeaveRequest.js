@@ -38,7 +38,7 @@ const leaveRequestSchema = new mongoose.Schema(
     facultyStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
     hodStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
     directorStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
-    overallStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Cancelled'], default: 'Pending' },
+    overallStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
 
     facultyRemark: { type: String },
     hodRemark: { type: String },

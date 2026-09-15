@@ -392,7 +392,8 @@ const cancelApproval = asyncHandler(async (req, res) => {
 
   const reason = remark || 'Approval cancelled by HOD';
   const now = new Date();
-  leave.overallStatus = 'Cancelled';
+  leave.overallStatus = 'Rejected';
+  leave.hodStatus = 'Rejected';
   leave.hodRemark = reason;
   await leave.save();
 
