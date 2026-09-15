@@ -226,8 +226,15 @@ Pages['student-dashboard'] = {
       ]);
       const requests = historyRes.data || [];
       const counts = { total: requests.length, approved: 0, pending: 0, rejected: 0 };
+      const resolveStatus = (item) => {
+        const value = (item?.overallStatus ?? item?.overall_status ?? item?.status ?? '').toString().trim();
+        if (!value) return 'Pending';
+        if (['Rejected', 'Rejected by HOD', 'Cancelled', 'Canceled'].includes(value)) return 'Rejected';
+        if (['Approved'].includes(value)) return 'Approved';
+        return 'Pending';
+      };
       requests.forEach((r) => {
-        const status = (r.overall_status || r.overallStatus || '').toString().trim();
+        const status = resolveStatus(r);
         if (status === 'Approved') counts.approved++;
         else if (status === 'Rejected') counts.rejected++;
         else counts.pending++;
@@ -235,7 +242,7 @@ Pages['student-dashboard'] = {
       const unread = Number(unreadRes.data?.count || 0);
       this._syncHeaderNotificationBadge(unread);
       let approvedPassData = null;
-      const approvedLeave = requests.find((r) => (r.overall_status || r.overallStatus) === 'Approved');
+      const approvedLeave = requests.find((r) => resolveStatus(r) === 'Approved');
       if (approvedLeave) {
         try {
           const epassRes = await Api.get(`/epass/${approvedLeave.id || approvedLeave._id}`);
@@ -369,7 +376,7 @@ Pages['student-dashboard'] = {
       document.getElementById('refresh-location-btn')?.addEventListener('click', () => this._getUserLocation());
       document.getElementById('retry-location-btn')?.addEventListener('click', () => this._getUserLocation());
       document.getElementById('view-approved-pass-btn')?.addEventListener('click', () => {
-        const approvedLeave = (requests || []).find((item) => (item.overall_status || item.overallStatus) === 'Approved');
+        const approvedLeave = (requests || []).find((item) => resolveStatus(item) === 'Approved');
         if (approvedLeave) Router.navigate('epass', { leaveRequestId: approvedLeave.id || approvedLeave._id });
       });
       document.getElementById('qr-option-btn')?.addEventListener('click', () => {

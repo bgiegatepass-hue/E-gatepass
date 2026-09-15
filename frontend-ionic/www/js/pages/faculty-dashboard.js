@@ -211,13 +211,20 @@ Pages['faculty-dashboard'] = {
       this._syncHeaderNotificationBadge(unread);
       const requests = historyRes.data || [];
       const counts = { total: requests.length, approved: 0, pending: 0, rejected: 0 };
+      const resolveStatus = (item) => {
+        const value = (item?.overallStatus ?? item?.overall_status ?? item?.status ?? '').toString().trim();
+        if (!value) return 'Pending';
+        if (['Rejected', 'Rejected by HOD', 'Cancelled', 'Canceled'].includes(value)) return 'Rejected';
+        if (['Approved'].includes(value)) return 'Approved';
+        return 'Pending';
+      };
       requests.forEach((r) => {
-        const status = (r.overall_status || r.overallStatus || '').toString().trim();
+        const status = resolveStatus(r);
         if (status === 'Approved') counts.approved++;
         else if (status === 'Rejected') counts.rejected++;
         else counts.pending++;
       });
-      const approvedLeave = requests.find((r) => (r.overall_status || r.overallStatus) === 'Approved');
+      const approvedLeave = requests.find((r) => resolveStatus(r) === 'Approved');
       body.innerHTML = `
         <!-- Location Bar -->
         <div id="user-location-display" style="background:var(--bgi-surface);border-radius:14px;border:1px solid var(--bgi-border);padding:8px 14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
