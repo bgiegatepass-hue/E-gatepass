@@ -6,6 +6,7 @@ const { notifyUser } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
 const { uploadBufferToFirebase } = require('../services/fileUploadService');
 const { getHodDepartmentCandidates } = require('../utils/leaveRouting');
+const { syncLegacyLeaveStatusFields } = require('../utils/leaveStatus');
 
 // POST /api/v1/leave/apply  (STUDENT/FACULTY)
 const applyLeave = asyncHandler(async (req, res) => {
@@ -126,13 +127,13 @@ const getMyRequests = asyncHandler(async (req, res) => {
   if (status !== 'All') query.overallStatus = status;
 
   const requests = await LeaveRequest.find(query).sort({ createdAt: -1 });
-  res.json({ success: true, data: requests.map((r) => r.toJSON()) });
+  res.json({ success: true, data: requests.map((r) => syncLegacyLeaveStatusFields(r.toJSON())) });
 });
 
 // GET /api/v1/leave/history
 const getHistory = asyncHandler(async (req, res) => {
   const requests = await LeaveRequest.find({ student: req.user._id }).sort({ createdAt: -1 });
-  res.json({ success: true, data: requests.map((r) => r.toJSON()) });
+  res.json({ success: true, data: requests.map((r) => syncLegacyLeaveStatusFields(r.toJSON())) });
 });
 
 // GET /api/v1/leave/:id
@@ -143,7 +144,7 @@ const getLeaveById = asyncHandler(async (req, res) => {
 
   const epass = await Epass.findOne({ leaveRequest: leave._id });
 
-  const leaveJson = leave.toJSON();
+  const leaveJson = syncLegacyLeaveStatusFields(leave.toJSON());
   if (leave.student) {
     leaveJson.studentName = leave.student.name;
     leaveJson.rollNumber = leave.student.rollNumber;

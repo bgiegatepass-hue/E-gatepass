@@ -6,9 +6,10 @@ const { notifyUser } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
 const { issueEpass } = require('./epassController');
 const { sendAccountApprovedEmail } = require('../services/emailService');
+const { syncLegacyLeaveStatusFields } = require('../utils/leaveStatus');
 
 function toHodJson(leave) {
-  const json = leave.toJSON();
+  const json = syncLegacyLeaveStatusFields(leave.toJSON());
   if (leave.student && leave.student.name) {
     json.studentName = leave.studentName || leave.student.name;
     json.rollNumber = leave.enrollmentNumber || leave.student.rollNumber;
@@ -305,6 +306,9 @@ const approveRequest = asyncHandler(async (req, res) => {
   leave.overallStatus = isFacultyLeave
     ? (leave.directorStatus === 'Approved' ? 'Approved' : (leave.directorStatus === 'Rejected' ? 'Rejected' : 'Pending'))
     : 'Approved';
+  leave.overall_status = leave.overallStatus;
+  leave.hod_status = leave.hodStatus;
+  leave.status = leave.overallStatus;
   await leave.save();
 
   await recordAudit(req, { action: 'HOD_APPROVED', entityType: 'LeaveRequest', entityId: leave._id, details: { remark } });
@@ -353,6 +357,9 @@ const rejectRequest = asyncHandler(async (req, res) => {
   leave.hodRemark = remark || undefined;
   leave.hodReviewedAt = new Date();
   leave.overallStatus = 'Rejected';
+  leave.overall_status = 'Rejected';
+  leave.hod_status = 'Rejected';
+  leave.status = 'Rejected';
   await leave.save();
 
   await recordAudit(req, { action: 'HOD_REJECTED', entityType: 'LeaveRequest', entityId: leave._id, details: { remark } });
@@ -393,7 +400,10 @@ const cancelApproval = asyncHandler(async (req, res) => {
   const reason = remark || 'Approval cancelled by HOD';
   const now = new Date();
   leave.overallStatus = 'Rejected';
+  leave.overall_status = 'Rejected';
   leave.hodStatus = 'Rejected';
+  leave.hod_status = 'Rejected';
+  leave.status = 'Rejected';
   leave.hodRemark = reason;
   await leave.save();
 
